@@ -1,0 +1,27 @@
+# Runs the Alpha Brain as its OWN compose project, separate from Graphite.
+# It does not join Graphite's network, share its volumes, or depend on its
+# services. Deploy:   docker compose -f brain/docker-compose.brain.yml up -d
+# Existing Graphite deploys are completely unaffected.
+services:
+  brain:
+    build:
+      context: ..              # repo root, so the Dockerfile can COPY brain/
+      dockerfile: brain/Dockerfile
+    image: alpha-brain:local
+    container_name: alpha-brain
+    restart: unless-stopped
+    environment:
+      BRAIN_ENABLED: "${BRAIN_ENABLED:-false}"
+      BRAIN_LIVE_ARMS: "${BRAIN_LIVE_ARMS:-false}"
+      BRAIN_PORT: "8090"
+      # GRAPHITE_RO_DSN is set only when the read-only pull is wired (Pramod).
+      GRAPHITE_RO_DSN: "${GRAPHITE_RO_DSN:-}"
+      # Unset = POST /approve is disabled (403). See .env.example.
+      BRAIN_APPROVE_TOKEN: "${BRAIN_APPROVE_TOKEN:-}"
+    ports:
+      - "127.0.0.1:8090:8090"  # localhost only — NOT exposed to the internet
+    volumes:
+      - brain-data:/brain/data
+
+volumes:
+  brain-data:

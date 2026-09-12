@@ -1,0 +1,45 @@
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+PYTHONPATH=/var/www/html
+
+# ── Graphite Finance Engine ─────────────────────────────────────────────────
+# Schedule is UTC. Output appended to /var/log/pyengine/.
+
+# Earned/Unearned Premium — daily 02:00 UTC
+0 2 * * * cd /var/www/html && python3 -m pyengine.jobs.earned_premium_daily >> /var/log/pyengine/earned_premium.log 2>&1
+
+# Invoice generation for ISSUED policies missing ledger entries — 04:00 daily
+0 4 * * * cd /var/www/html && node scripts/invoice_domcom.js >> /var/log/pyengine/invoice.log 2>&1
+
+# Reconciliation balance fix — 04:30 daily (runs before anomaly check)
+30 4 * * * cd /var/www/html && node scripts/reconciliation.js --fix >> /var/log/pyengine/reconciliation.log 2>&1
+
+# Anomaly Detection — 05:00 daily
+0 5 * * * cd /var/www/html && python3 -m pyengine.engine --job anomaly >> /var/log/pyengine/anomaly.log 2>&1
+
+# Debtors Ageing — every Monday 07:00
+0 7 * * 1 cd /var/www/html && python3 -m pyengine.engine --job ageing --email >> /var/log/pyengine/ageing.log 2>&1
+
+# Gross Written Premium — 1st of month 06:00
+0 6 1 * * cd /var/www/html && python3 -m pyengine.engine --job written_premium --email >> /var/log/pyengine/written_premium.log 2>&1
+
+# Payment Anomaly — daily 06:00 UTC
+0 6 * * * cd /var/www/html && python3 -m pyengine.engine --job payment_anomaly --email >> /var/log/pyengine/payment_anomaly.log 2>&1
+
+# Policy Audit — daily 05:30 UTC
+30 5 * * * cd /var/www/html && python3 -m pyengine.engine --job policy_audit --email >> /var/log/pyengine/policy_audit.log 2>&1
+
+# Premium Anomaly — Wednesdays 06:00 UTC
+0 6 * * 3 cd /var/www/html && python3 -m pyengine.engine --job premium_anomaly --email >> /var/log/pyengine/premium_anomaly.log 2>&1
+
+# KYC Compliance — Tuesdays 07:00 UTC
+0 7 * * 2 cd /var/www/html && python3 -m pyengine.engine --job kyc_compliance_report --email >> /var/log/pyengine/kyc_compliance.log 2>&1
+
+# Reinsurance Anomaly — Fridays 07:00 UTC
+0 7 * * 5 cd /var/www/html && python3 -m pyengine.engine --job reinsurance_anomaly --email >> /var/log/pyengine/reinsurance_anomaly.log 2>&1
+
+# Collections Report — Mondays 08:00 UTC
+0 8 * * 1 cd /var/www/html && python3 -m pyengine.engine --job collections_report --email >> /var/log/pyengine/collections.log 2>&1
+
+# Claims Anomaly — Thursdays 07:00 UTC
+0 7 * * 4 cd /var/www/html && python3 -m pyengine.engine --job claims_anomaly --email >> /var/log/pyengine/claims_anomaly.log 2>&1

@@ -1,0 +1,14 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+@import 'datatable.css';
+@import 'wizard.css';
+.rounded-lg .table-cell .inline
+{
+   display: inline;
+	font-size: 12px;
+	font-weight: bold;
+}
+.rounded-lg .table-row .table-cell {
+	text-transform: capitalize;
+}

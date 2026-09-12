@@ -1,0 +1,252 @@
+name: PR Guard
+
+# Runs on every PR open / synchronize / reopen. Read-only against PROD —
+# only gates PR merging, never deploys or mutates anything.
+#
+# What it enforces TODAY: any migration file added/modified in this PR
+# must use idempotency guards (Schema::hasTable / Schema::hasColumn /
+# IF NOT EXISTS / IF EXISTS) so that a re-run of `migrate --force`
+# against a drifted state cannot halt the pipeline.
+#
+# Adopted 2026-06-15 after the multi-day PROD migration sweep where 240
+# pending migrations had accumulated because one non-idempotent migration
+# in 2024 halted entrypoint auto-migrate and silently masked every
+# subsequent drift.
+#
+# To bypass intentionally (rare — e.g. a one-shot data backfill that
+# truly cannot be made idempotent), add the marker line
+#   // pr-guard:allow-non-idempotent
+# inside the migration file. The check will record the bypass in the PR
+# comment so reviewers see it explicitly.
+
+on:
+  # Runs on EVERY pull request — intentionally NOT path-filtered. This job is a
+  # REQUIRED status check in branch protection. A path filter would skip it on
+  # PRs that touch no migrations, which leaves the required check stuck on
+  # "Expected — waiting for status to be reported" and blocks the merge forever
+  # (hit #1193). The job already short-circuits to a green pass when no
+  # migration files changed (see the final "No migrations changed" step), so
+  # running it on every PR is cheap and keeps the required check satisfiable.
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  migration-idempotency:
+    name: Migration idempotency check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need history to diff against base
+
+      - name: Identify changed migration files
+        id: changes
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          # Added or modified migration files only (not deletions)
+          git diff --name-only --diff-filter=AM "$BASE" "$HEAD" \
+            -- 'backend/database/migrations/**.php' 'cron/database/migrations/**.php' \
+            > changed.txt || true
+          # Strip any subdirectory migrations (archive/, old_migration/, stash/) —
+          # Laravel doesn't auto-load them so they don't affect the pipeline.
+          grep -vE '/(archive|old_migration|stash|performance_fixes)/' changed.txt \
+            > top_level.txt || true
+          count=$(grep -c . top_level.txt || true)
+          echo "Changed top-level migrations: $count"
+          cat top_level.txt
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Check each migration for idempotency guards
+        if: steps.changes.outputs.count != '0'
+        id: check
+        run: |
+          python3 - <<'PYEOF'
+          import os, re, sys, json
+
+          files = [l.strip() for l in open('top_level.txt') if l.strip()]
+          report = []
+          for path in files:
+              if not os.path.exists(path):
+                  continue
+              src = open(path, 'r', encoding='utf-8', errors='replace').read()
+
+              # Explicit bypass marker — record but don't fail
+              if 'pr-guard:allow-non-idempotent' in src:
+                  report.append({'file': path, 'status': 'bypassed', 'reason': 'explicit pr-guard:allow-non-idempotent marker'})
+                  continue
+
+              # Extract up() body — be generous about the closing brace
+              up_match = re.search(r'public\s+function\s+up\s*\([^)]*\)\s*[:\s]*void?\s*\{(.*?)\n\s*\}\s*\n\s*(?:public|protected|private|\Z)', src, re.DOTALL)
+              up = up_match.group(1) if up_match else src
+
+              violations = []
+
+              # 1) Schema::create(...) without a surrounding hasTable guard
+              for m in re.finditer(r"Schema::create\s*\(\s*['\"]([a-z_0-9]+)['\"]", up):
+                  tbl = m.group(1)
+                  # Look backwards in up() for `if (!Schema::hasTable('tbl'`
+                  prefix = up[:m.start()]
+                  guard = re.search(rf"if\s*\(\s*!\s*Schema::hasTable\s*\(\s*['\"]{re.escape(tbl)}['\"]", prefix)
+                  if not guard:
+                      violations.append(f"Schema::create('{tbl}') has no `if (!Schema::hasTable('{tbl}'))` guard")
+
+              # 2) Schema::table(...) blocks that add columns must guard each ADD
+              # Crude: if a Schema::table() block contains $table->TYPE('col')
+              # patterns but does NOT contain any Schema::hasColumn or
+              # IF NOT EXISTS marker, flag it.
+              TYPE_HELPERS = r'(?:bigIncrements|bigInteger|binary|boolean|char|date|dateTime|decimal|double|enum|float|foreignId|id|increments|integer|ipAddress|json|jsonb|longText|mediumIncrements|mediumInteger|mediumText|morphs|rememberToken|set|smallIncrements|smallInteger|softDeletes|string|text|time|timestamp|timestamps|tinyIncrements|tinyInteger|unsignedBigInteger|unsignedDecimal|unsignedInteger|unsignedMediumInteger|unsignedSmallInteger|unsignedTinyInteger|uuid|year)'
+              for m in re.finditer(rf"Schema::table\s*\(\s*['\"]([a-z_0-9]+)['\"][^{{]*\{{(.*?)\n\s*\}}\s*\)", up, re.DOTALL):
+                  tbl = m.group(1)
+                  body = m.group(2)
+                  adds_a_column = bool(re.search(rf"\$table->{TYPE_HELPERS}\s*\(", body))
+                  drops_a_column = bool(re.search(r"\$table->dropColumn\b", body))
+                  if not (adds_a_column or drops_a_column):
+                      continue
+                  has_guard = bool(re.search(r"Schema::hasColumn|IF\s+NOT\s+EXISTS|IF\s+EXISTS", body, re.IGNORECASE))
+                  # Allow guard on the OUTER if-block surrounding the Schema::table call too
+                  outer_prefix = up[:m.start()][-200:]
+                  outer_guard = bool(re.search(r"Schema::hasColumn|Schema::hasTable", outer_prefix))
+                  if not has_guard and not outer_guard:
+                      action = []
+                      if adds_a_column:  action.append('adds column(s)')
+                      if drops_a_column: action.append('drops column(s)')
+                      violations.append(f"Schema::table('{tbl}') {' + '.join(action)} without a Schema::hasColumn(...) guard")
+
+              # 3) Raw DDL via DB::statement should use IF NOT EXISTS where possible
+              for m in re.finditer(r"DB::(?:statement|unprepared)\s*\(\s*['\"]?([^'\"\)]+)", up):
+                  stmt = m.group(1).upper()
+                  if 'CREATE TABLE' in stmt and 'IF NOT EXISTS' not in stmt:
+                      violations.append("DB::statement CREATE TABLE without `IF NOT EXISTS`")
+                  if 'CREATE INDEX' in stmt and 'IF NOT EXISTS' not in stmt:
+                      violations.append("DB::statement CREATE INDEX without `IF NOT EXISTS`")
+                  # CREATE OR REPLACE VIEW / PROCEDURE / FUNCTION are inherently idempotent — no flag
+
+              if violations:
+                  report.append({'file': path, 'status': 'fail', 'violations': violations})
+              else:
+                  report.append({'file': path, 'status': 'pass'})
+
+          json.dump(report, open('report.json', 'w'), indent=2)
+          fails = [r for r in report if r['status'] == 'fail']
+          bypasses = [r for r in report if r['status'] == 'bypassed']
+          passes = [r for r in report if r['status'] == 'pass']
+          print(f"Checked {len(report)} migration file(s): "
+                f"{len(passes)} pass, {len(bypasses)} bypassed, {len(fails)} fail")
+          # Print human-readable for the job log
+          for r in report:
+              if r['status'] == 'fail':
+                  print(f"\n❌ {r['file']}")
+                  for v in r['violations']:
+                      print(f"   • {v}")
+              elif r['status'] == 'bypassed':
+                  print(f"\n⚠️  {r['file']} — {r['reason']}")
+              else:
+                  print(f"\n✅ {r['file']}")
+          if fails:
+              sys.exit(1)
+          PYEOF
+
+      - name: Post PR comment with findings
+        if: always() && steps.changes.outputs.count != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('report.json')) {
+              return; // nothing to report
+            }
+            const report = JSON.parse(fs.readFileSync('report.json', 'utf8'));
+            const fails    = report.filter(r => r.status === 'fail');
+            const bypasses = report.filter(r => r.status === 'bypassed');
+            const passes   = report.filter(r => r.status === 'pass');
+
+            const header = '<!-- pr-guard:migration-idempotency -->';
+            const status = fails.length === 0 ? '✅ Pass' : `❌ ${fails.length} migration(s) need idempotency guards`;
+
+            let body = `${header}\n## PR Guard — Migration Idempotency ${status}\n\n`;
+            body += `Checked **${report.length}** migration file(s) in this PR.\n\n`;
+
+            if (passes.length) {
+              body += `**Passing (${passes.length}):**\n`;
+              for (const r of passes) body += `- \`${r.file}\`\n`;
+              body += `\n`;
+            }
+            if (bypasses.length) {
+              body += `**Bypassed (${bypasses.length}):**\n`;
+              for (const r of bypasses) body += `- \`${r.file}\` — ${r.reason}\n`;
+              body += `\n`;
+            }
+            if (fails.length) {
+              body += `**Failing (${fails.length}):**\n`;
+              for (const r of fails) {
+                body += `\n### ❌ \`${r.file}\`\n`;
+                for (const v of r.violations) body += `- ${v}\n`;
+              }
+              body += `\n---\n\n**How to fix** — wrap each schema change in an idempotency guard:\n`;
+              body += '```php\n';
+              body += 'public function up(): void\n{\n';
+              body += '    if (!Schema::hasTable(\'my_table\')) {\n';
+              body += '        Schema::create(\'my_table\', function (Blueprint $t) {\n';
+              body += '            // ... columns ...\n';
+              body += '        });\n';
+              body += '    }\n\n';
+              body += '    Schema::table(\'existing_table\', function (Blueprint $t) {\n';
+              body += '        if (!Schema::hasColumn(\'existing_table\', \'new_col\')) {\n';
+              body += '            $t->string(\'new_col\')->nullable();\n';
+              body += '        }\n';
+              body += '    });\n';
+              body += '}\n';
+              body += '```\n\n';
+              body += 'Or, if the migration is genuinely one-shot and can\'t be guarded (e.g. specific data backfill), add this marker inside the file:\n';
+              body += '```php\n';
+              body += '// pr-guard:allow-non-idempotent\n';
+              body += '```\n';
+            }
+
+            // Upsert the comment (replace previous pr-guard comment instead of appending)
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.rest.issues.listComments({ owner, repo, issue_number });
+            const existing = comments.data.find(c => c.body && c.body.includes(header));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: No migrations changed — nothing to check
+        if: steps.changes.outputs.count == '0'
+        run: echo "No migration files changed in this PR."
+
+  # Both images are served by nginx, so a syntax error in either config stops
+  # the container from starting. deploy-backend ends with
+  # `aws ecs wait services-stable || true`, which swallows exactly that failure
+  # and still reports the deploy green — so nothing downstream catches it.
+  # Validate the configs here, before they can be merged.
+  nginx-config:
+    name: nginx config validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Each file is a bare server{} block, so it is mounted where the stock
+      # nginx.conf expects to include it rather than being tested standalone.
+      - name: Validate backend nginx.conf
+        run: |
+          docker run --rm \
+            -v "$PWD/backend/docker/nginx.conf:/etc/nginx/http.d/default.conf:ro" \
+            nginx:alpine nginx -t
+
+      - name: Validate frontend nginx.conf
+        run: |
+          docker run --rm \
+            -v "$PWD/frontend/docker/nginx.conf:/etc/nginx/http.d/default.conf:ro" \
+            nginx:alpine nginx -t

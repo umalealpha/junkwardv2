@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en" >
+
+@include('admin.layouts.header')
+
+<!-- begin::Body -->
+<body class="kt-header--fixed kt-header-mobile--fixed kt-subheader--enabled kt-subheader--transparent kt-aside--enabled kt-aside--fixed kt-aside--minimize kt-page--loading" >
+<!-- begin:: Header Mobile -->
+<div id="kt_header_mobile" class="kt-header-mobile kt-header-mobile--fixed " >
+    <div class="kt-header-mobile__logo">
+        <a>
+            <img alt="Logo" src="{{asset('images/logo.png')}}"/>
+        </a>
+    </div>
+    <div class="kt-header-mobile__toolbar">
+        <button class="kt-header-mobile__toolbar-toggler kt-header-mobile__toolbar-toggler--left" id="kt_aside_mobile_toggler"><span></span></button>
+        <button class="kt-header-mobile__toolbar-toggler" id="kt_header_mobile_toggler"><span></span></button>
+        <button class="kt-header-mobile__toolbar-topbar-toggler" id="kt_header_mobile_topbar_toggler"><i class="flaticon-more"></i></button>
+    </div>
+</div>
+<!-- end:: Header Mobile -->
+<!-- begin:: Root -->
+<div class="kt-grid kt-grid--hor kt-grid--root">
+    <!-- begin:: Page -->
+    <div class="kt-grid__item kt-grid__item--fluid kt-grid kt-grid--ver kt-page">
+
+        @include('admin.layouts.sidebar')
+        @include('admin.layouts.topNav')
+
+    </div>
+    <div class="kt-grid__item kt-grid__item--fluid kt-grid kt-grid--hor">
+        <!-- begin:: Subheader -->
+        <div class="kt-subheader kt-grid__item" id="kt_subheader">
+            <div class="kt-subheader__main">
+                <h3 class="kt-subheader__title">
+                    Edit Client Contract
+                </h3>
+                <span class="kt-subheader__separator kt-hidden"></span>
+                <div class="kt-subheader__breadcrumbs">
+                    <a href="#" class="kt-subheader__breadcrumbs-home"><i class="flaticon2-shelter"></i></a>
+                    <span class="kt-subheader__breadcrumbs-separator"></span> <a href="{{Route('admin-dashboard')}}" class="kt-subheader__breadcrumbs-link"> Dashboard </a> <span class="kt-subheader__breadcrumbs-separator"></span> <a href="{{Route('admin.accounts.index')}}" class="kt-subheader__breadcrumbs-link"> Realpay </a> <span class="kt-subheader__breadcrumbs-separator"></span>
+                    <a href="{{Route('admin.accounts.index')}}" class="kt-subheader__breadcrumbs-link"> Add New Contract</a> <span class="kt-subheader__breadcrumbs-separator"></span>
+                </div>
+            </div>
+        </div>
+        <!-- end:: Subheader -->
+        <!--If Password default, show edit details -->
+    {{--    @if (Auth::user()->default_password == "111111")
+       @include('includes.reset')
+       @else --}}
+    <!-- begin:: Content -->
+        <div class="kt-content kt-grid__item kt-grid__item--fluid" id="kt_content">
+            <!--begin::Portlet-->
+            <div class="kt-portlet">
+                <!--begin::Form-->
+                <form id="contractCreate" action="{{ route('admin.logUpdateDataRealpay') }}"
+                      method="POST" enctype="multipart/form-data" class="kt-form">
+                    <!-- CSRF Token -->
+                    <input type="hidden" name="_token" value="{{ csrf_token() }}" />
+                    <div class="kt-portlet__body">
+                        <div class="form-group row">
+                            <label  class="col-3 col-form-label">Product :</label>
+                            <div class="col-9">
+                                <select class="form-control" name="product">
+                                    <option value="" disabled selected>Select product</option>
+                                    <option value="FNBNDOBW">FNBNDOBW</option>
+                                    <option value="RTFNBBW">RTFNBBW</option>
+                                </select>
+                                <span class="form-text text-muted"></span>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label  class="col-3 col-form-label">Client Number :</label>
+                            <div class="col-9">
+                                <input  class="form-control" name="client_number"  title="Please provide policy number" placeholder="Please provide policy number">
+                                <span class="form-text text-muted"></span>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label  class="col-3 col-form-label">Contract Number :</label>
+                            <div class="col-9">
+                                <input  class="form-control" name="contract_number"  title="Please provide policy number" placeholder="Please provide policy number">
+                                <span class="form-text text-muted"></span>
+                            </div>
+                        </div>
+                        <div class="form-group row">
+                            <label  class="col-3 col-form-label">Action :</label>
+                            <div class="col-9">
+                                <select class="form-control" name="action" id="action">
+                                    <option value="" disabled selected>Select Action</option>
+                                    <option value="1" >Update Premium</option>
+                                    <option value="2" >Update Billing Day</option>
+                                    <option value="3" >Update Both (Billing Day & Premium)</option>
+                                </select>
+                                <span class="form-text text-muted"></span>
+                            </div>
+                        </div>
+                        <div class="form-group row" id="premium_div">
+                            <label  class="col-3 col-form-label">Premium :</label>
+                            <div class="col-9">
+                                <input  class="form-control" name="premium" id="premium" title="Please provide premium" placeholder="Please provide premium">
+                                <span class="form-text text-muted"></span>
+                            </div>
+                        </div>
+                        <div class="form-group row" id="billing_div">
+                            <label  class="col-3 col-form-label">Billing Day :</label>
+                            <div class="col-9">
+{{--                                <input  class="form-control" name="billing_day" id="billing_day" title="Please provide billing day" placeholder="Please provide billing day">--}}
+                                <select class="form-control" id="billing_day" name="billing_day">
+
+                                </select>
+                                <span class="form-text text-muted"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="kt-portlet__foot kt-portlet__foot--solid">
+                        <div class="kt-form__actions">
+                            <div class="row">
+                                <div class="col-3"></div>
+                                <div class="col-9">
+                                    <button type="submit" value="Submit" id="submitbtn" class="btn btn-brand">Submit</button>
+                                    <button class="btn btn-brand" type="button" id="loadBtn" style="display:none" > <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading... </button>
+                                    <a class="btn btn-secondary" href="{{ route('admin.accounts.index') }}" >Cancel</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+                <!--end::Form-->
+            </div>
+            <!--end::Portlet-->
+        </div>
+        <!-- end:: Content -->
+        {{--  @endif --}}
+    </div>
+    <!-- begin:: Footer -->
+@include('includes.footer')
+<!-- end:: Footer -->
+</div>
+<!-- end:: Wrapper -->
+</div>
+<!-- end:: Page -->
+</div>
+<!-- end:: Root -->
+<!-- begin:: Scrolltop -->
+<div id="kt_scrolltop" class="kt-scrolltop"> <i class="la la-arrow-up"></i> </div>
+<!-- end:: Scrolltop -->
+
+@include('admin.layouts.scripts')
+
+<script src="{{ asset('assets/vendors/general/jquery-validation/dist/jquery.validate.js') }}" type="text/javascript"></script>
+<script src="{{ asset('assets/vendors/custom/components/vendors/jquery-validation/init.js') }}" type="text/javascript"></script>
+<script src="{{asset('assets/vendors/general/jquery.repeater/src/lib.js')}}" type="text/javascript"></script>
+<script src="{{asset('assets/vendors/general/jquery.repeater/src/jquery.input.js')}}" type="text/javascript"></script>
+<script src="{{asset('assets/vendors/general/jquery.repeater/src/repeater.js')}}" type="text/javascript"></script>
+<script src="{{asset('assets/app/custom/general/components/forms/layouts/repeater.js')}}" type="text/javascript"></script>
+
+<script>
+    "use strict";
+    // Class definition
+
+    var KTFormControls = function () {
+// Private functions
+
+        var demo1 = function () {
+            $( "#contractCreate" ).validate({
+// define validation rules
+                rules: {
+                    policyNumber: {
+                        required: true
+                    },
+                    clientNumber:{
+                        required:true
+                    },
+                    contractNumber:{
+                        required:true
+                    },
+                    instalmentDate:{
+                        required:true
+                    },
+                    instalmentAmount:{
+                        required:true
+                    },
+                    contractSequence:{
+                        required:true
+                    },
+                },
+
+//display error alert on form submit
+                invalidHandler: function(event, validator) {
+
+                    $('#submit').hide();
+                    KTUtil.scrollTo("contractCreate", -200);
+                },
+
+                submitHandler: function (form) {
+                    $('#submitbtn').hide();
+                    $('#loadBtn').show();
+                    form[0].submit(); // submit the form
+                }
+            });
+        }
+
+        return {
+// public functions
+            init: function() {
+                demo1();
+            }
+        };
+    }();
+
+    jQuery(document).ready(function() {
+        KTFormControls.init();
+
+        for(var i = 1; i <= 28; i++){
+            $('#billing_day').append('<option value="'+ i +'">'+ i +'</option>');
+        }
+        $('#billing_day').append('<option value="99">Last day of the month</option>');
+
+        $('#premium_div').slideUp();
+        $('#billing_div').slideUp();
+
+        $('#action').on('change',function(){
+           switch($(this).val()){
+                case '1':
+                    $('#billing_div').slideUp();
+                    $('#premium_div').slideDown();
+                    break;
+               case '2':
+                   $('#premium_div').slideUp();
+                   $('#billing_div').slideDown();
+                   break;
+               case '3':
+                   $('#premium_div').slideDown();
+                   $('#billing_div').slideDown();
+                   break;
+               default:
+                   alert('Please select correct action');
+
+
+           }
+        });
+    });
+
+
+
+</script>
+
+</body>
+<!-- end::Body -->
+</html>

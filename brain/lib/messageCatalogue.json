@@ -1,0 +1,146 @@
+{
+  "claim_received": {
+    "event": "claim_received",
+    "sms": "Hi {contactName}, we got your claim {claimNumber}. We will update you soon. — Alpha Direct",
+    "whatsapp": "Hello {contactName}, thank you for your claim {claimNumber}. We are working on it. We will send you updates. If you have questions, call us. — Alpha Direct",
+    "email": {
+      "subject": "We received your claim {claimNumber}",
+      "text": "Dear {contactName}, we have received your claim {claimNumber}. We will review it and let you know the next steps. You can check the status using your policy number {policyNumber}. If you need help, please call us. Thank you for choosing us — Alpha Direct"
+    }
+  },
+  "assessment_booked": {
+    "event": "assessment_booked",
+    "sms": "Hi {contactName}, your assessment for claim {claimNumber} is booked on {date}. We will contact you. — Alpha Direct",
+    "whatsapp": "Hello {contactName}, your assessment for claim {claimNumber} is set for {date}. {assessorName} will visit. Need help? Reply here. — Alpha Direct",
+    "email": {
+      "subject": "Your assessment is booked",
+      "text": "Dear {contactName}, your assessment for claim {claimNumber} is booked for {date}. {assessorName} will handle it. Please be ready at that time. If you have questions, call us. Thank you for your patience. — Alpha Direct"
+    }
+  },
+  "assessment_done": {
+    "event": "assessment_done",
+    "sms": "Hi {contactName}, your assessment for claim {claimNumber} is done. We will update you soon. — Alpha Direct",
+    "whatsapp": "Hello {contactName}, your claim {claimNumber} assessment is complete. We are working on next steps. If you have questions, just reply. — Alpha Direct",
+    "email": {
+      "subject": "Your assessment is done for claim {claimNumber}",
+      "text": "Dear {contactName}, the assessment for your claim {claimNumber} is finished. The assessor {assessorName} has submitted the report. We will let you know the next steps soon. If you need help, please contact us. Thank you for your patience. — Alpha Direct"
+    }
+  },
+  "repair_order_sent": {
+    "event": "repair_order_sent",
+    "sms": "Hi {contactName}, your repair order is sent. Claim {claimNumber}. We will update you soon. — Alpha Direct",
+    "whatsapp": "Hello {contactName}, good news! Your repair order for claim {claimNumber} is sent. The supplier {supplierName} will contact you. We are here to help. — Alpha Direct",
+    "email": {
+      "subject": "Your repair order is sent — Alpha Direct",
+      "text": "Dear {contactName}, your repair order for claim {claimNumber} is now sent. The supplier {supplierName} will handle the work. You can check your policy {policyNumber} for details. We will keep you updated. Thank you for trusting us. — Alpha Direct"
+    }
+  },
+  "agreement_of_loss_to_sign": {
+    "event": "agreement_of_loss_to_sign",
+    "sms": "Hi {contactName}, the settlement agreement for claim {claimNumber} is ready to sign. Please open the secure link in our email to review and sign. — Alpha Direct",
+    "whatsapp": "Hello {contactName}, we have prepared the Agreement of Loss for claim {claimNumber}. It sets out the amount we will pay, and signing it means you accept that settlement. Please read it carefully and sign here: {link}. Call us first if anything is unclear. — Alpha Direct",
+    "email": {
+      "subject": "Agreement of Loss to review and sign — claim {claimNumber}",
+      "text": "Dear {contactName}, we have prepared the Agreement of Loss for claim {claimNumber}. It sets out the amount we will pay to settle your claim. Signing it means you accept that settlement, so please read it carefully first. You can review and sign it securely here: {link}. If anything is unclear, call us before you sign. — Alpha Direct"
+    }
+  },
+  "claim_paid": {
+    "event": "claim_paid",
+    "sms": "Your claim {claimNumber} is settled. {amount} sent to your bank. It may take a short while to reflect. Thank you — Alpha Direct",
+    "whatsapp": "Hello {contactName}, good news — your claim {claimNumber} is settled and {amount} has been sent to your bank. It may take a short while to reflect in your account. Thank you for insuring with us. — Alpha Direct",
+    "email": {
+      "subject": "Your claim {claimNumber} has been settled",
+      "text": "Dear {contactName}, good news — your claim {claimNumber} has been settled and {amount} has been sent to your bank. Please allow a little time for it to reflect in your account. If you have any questions, call us. — Alpha Direct"
+    }
+  },
+  "claim_declined": {
+    "event": "claim_declined",
+    "sms": "Hi {contactName}, we have made a decision on claim {claimNumber}. Please see our email for the reason and your options. — Alpha Direct",
+    "whatsapp": "Hello {contactName}, we have reviewed claim {claimNumber} and are not able to pay it. We know this is not the news you hoped for. Our email explains why, and how to ask us to review the decision if you disagree. We are here to talk it through. — Alpha Direct",
+    "email": {
+      "subject": "Decision on your claim {claimNumber}",
+      "text": "Dear {contactName}, after reviewing claim {claimNumber}, we are not able to approve it. We understand this is disappointing and we do not take it lightly. The full reason is in the attached letter. If you disagree, you can ask us to review the decision, or take it to our complaints team and, if still unresolved, to NBFIRA. Please call us and we will talk you through it. — Alpha Direct"
+    }
+  },
+  "renewal_due": {
+    "event": "renewal_due",
+    "sms": "Hi {contactName}, policy {policyNumber} renews on {date}. Amount due: {amount}. Pay via {link} to stay covered. — Alpha Direct",
+    "whatsapp": "Hello {contactName}, your policy {policyNumber} is due for renewal on {date}. To keep your cover without a break, the amount due is {amount}. You can renew and pay here: {link}. Happy to help if you have questions. — Alpha Direct",
+    "email": {
+      "subject": "Your policy {policyNumber} renews on {date}",
+      "text": "Dear {contactName}, your policy {policyNumber} is due for renewal on {date}, and the amount due is {amount}. Please renew before then so your cover continues without a break — you can pay using this link: {link}. If anything has changed or you have questions, just call us. — Alpha Direct"
+    }
+  },
+  "payment_failed": {
+    "event": "payment_failed",
+    "sms": "Hi {contactName}, your payment of {amount} on {date} failed. Please check and pay again. Call us if you need help. — Alpha Direct",
+    "whatsapp": "Hello {contactName}, your payment of {amount} for policy {policyNumber} did not go through on {date}. No need to worry. Please use this link to pay: {link}. We are here to help. — Alpha Direct",
+    "email": {
+      "subject": "Payment failed for policy {policyNumber}",
+      "text": "Dear {contactName}, your payment of {amount} for policy {policyNumber} was not successful on {date}. Please check your payment method and try again. You can pay using this link: {link}. If you have questions, call us. We are here to help you. — Alpha Direct"
+    }
+  },
+  "lapse_warning": {
+    "event": "lapse_warning",
+    "sms": "Hi {contactName}, policy {policyNumber} will lapse on {date} if {amount} is not paid. Pay via {link} to keep cover. — Alpha Direct",
+    "whatsapp": "Hello {contactName}, we want to help you avoid losing cover. Policy {policyNumber} will lapse on {date} unless the amount due, {amount}, is paid. You can pay quickly here: {link}. If you are having trouble, call us — we can help. — Alpha Direct",
+    "email": {
+      "subject": "Action needed to keep policy {policyNumber} active",
+      "text": "Dear {contactName}, this is a friendly reminder that policy {policyNumber} will lapse on {date} if the amount due, {amount}, is not received. If your cover lapses, you would not be protected for any loss after that date. You can pay using this link: {link}. If money is tight, please call us — we can look at options together. — Alpha Direct"
+    }
+  },
+  "policy_welcome": {
+    "event": "policy_welcome",
+    "sms": "Welcome to Alpha Direct! Your policy {policyNumber} is active. We are here for you. — Alpha Direct",
+    "whatsapp": "Hello {contactName}, welcome to Alpha Direct! Your policy {policyNumber} is now active. Need help? We are just a message away. — Alpha Direct",
+    "email": {
+      "subject": "Welcome to Alpha Direct – Your Policy is Active",
+      "text": "Dear {contactName},\n\nWelcome to Alpha Direct! Your policy number {policyNumber} is now active. We are happy to have you with us.\n\nIf you have any questions, please contact us. We are here to help.\n\n— Alpha Direct"
+    }
+  },
+  "refund_processing": {
+    "event": "refund_processing",
+    "sms": "Your refund of {amount} for policy {policyNumber} is being processed. We will confirm once it is paid. — Alpha Direct",
+    "whatsapp": "Your refund of {amount} for policy {policyNumber} is being processed. We will message you as soon as it is paid. — Alpha Direct",
+    "email": {
+      "subject": "Refund Being Processed for Policy {policyNumber}",
+      "text": "Dear {contactName},\n\nYour refund of {amount} for policy {policyNumber} is being processed. We will confirm as soon as it has been paid.\n\n— Alpha Direct"
+    }
+  },
+  "refund_paid": {
+    "event": "refund_paid",
+    "sms": "Your refund of {amount} for policy {policyNumber} is paid. Thank you. — Alpha Direct",
+    "whatsapp": "Your refund of {amount} for policy {policyNumber} is now paid. Thank you for choosing us. — Alpha Direct",
+    "email": {
+      "subject": "Refund Paid for Policy {policyNumber}",
+      "text": "Dear {contactName},\n\nYour refund of {amount} for policy {policyNumber} has been paid. Thank you for your patience.\n\n— Alpha Direct"
+    }
+  },
+  "kyc_document_missing": {
+    "event": "kyc_document_missing",
+    "sms": "Hi {contactName}, we need a copy of your ID to finish policy {policyNumber}. Please send it here: {link} — Alpha Direct",
+    "whatsapp": "Hi {contactName}, to complete your policy {policyNumber} we still need one document — a clear copy of your ID (identity document). Please upload it using this link: {link}. Thank you — Alpha Direct",
+    "email": {
+      "subject": "We need a copy of your ID for policy {policyNumber}",
+      "text": "Dear {contactName}, to finish setting up your policy {policyNumber}, we need one more document from you — a clear copy of your ID (identity document). Please send it using this link: {link}. Once we have it, your cover is fully in place. — Alpha Direct"
+    }
+  },
+  "complaint_acknowledged": {
+    "event": "complaint_acknowledged",
+    "sms": "Hi {contactName}, we got your complaint about claim {claimNumber}. We are looking into it. We will update you soon. — Alpha Direct",
+    "whatsapp": "Hello {contactName}, thank you for telling us about your concern regarding claim {claimNumber}. We have received your message and are working on it. We will get back to you with an update as soon as possible. If you need anything else, just let us know. — Alpha Direct",
+    "email": {
+      "subject": "We received your complaint about claim {claimNumber}",
+      "text": "Dear {contactName}, we have received your complaint about claim {claimNumber}. We are sorry for any trouble. We are looking into it carefully. We will contact you with an update soon. Thank you for your patience. — Alpha Direct"
+    }
+  },
+  "policy_cancelled": {
+    "event": "policy_cancelled",
+    "sms": "Hi {contactName}, policy {policyNumber} was cancelled for non-payment from {date}. To reinstate, pay {amount} and call us. — Alpha Direct",
+    "whatsapp": "Hello {contactName}, because payment was not received, policy {policyNumber} has been cancelled with effect from {date}. You are not covered from that date. To reinstate your cover, please pay {amount} and contact us — we are happy to help. — Alpha Direct",
+    "email": {
+      "subject": "Policy {policyNumber} cancelled for non-payment",
+      "text": "Dear {contactName}, we did not receive payment for policy {policyNumber}, so it has been cancelled with effect from {date}. This means you are not covered for any loss from that date. If you would like to reinstate your cover, please pay {amount} and contact us and we will help. — Alpha Direct"
+    }
+  }
+}

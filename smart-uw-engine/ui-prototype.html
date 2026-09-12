@@ -1,0 +1,160 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smart Underwriting Upload — prototype</title>
+<style>
+  :root{--navy:#0D1B2A;--navy2:#16263b;--orange:#F4A623;--ink:#1f2937;--muted:#6b7280;
+        --line:#e5e7eb;--bg:#f5f6f8;--ok:#0f6e56;--okbg:#e1f5ee;--warn:#854f0b;--warnbg:#faeeda;--blue:#185fa5;--bluebg:#e6f1fb;}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);
+     font-family:"Segoe UI",system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.5}
+  .app{max-width:980px;margin:0 auto;padding:0 0 48px}
+  .top{background:var(--navy);color:#fff;padding:14px 24px;display:flex;align-items:center;gap:12px}
+  .top .logo{width:26px;height:26px;border-radius:6px;background:var(--orange);display:flex;align-items:center;justify-content:center;color:var(--navy);font-weight:700}
+  .top h1{font-family:"Book Antiqua",Georgia,serif;font-size:18px;margin:0;font-weight:600;letter-spacing:.2px}
+  .top .crumb{margin-left:auto;font-size:12px;color:#9fb3c8}
+  .wrap{padding:24px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px;margin:0 0 18px}
+  .h{font-family:"Book Antiqua",Georgia,serif;font-size:17px;margin:0 0 4px;color:var(--navy)}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+  .drop{border:2px dashed #c7ced6;border-radius:14px;padding:40px;text-align:center;color:var(--muted);
+        transition:all .25s cubic-bezier(.2,.8,.2,1);cursor:pointer}
+  .drop:hover{border-color:var(--orange);background:#fffdf6;transform:translateY(-1px)}
+  .drop .ic{font-size:34px;color:var(--orange)}
+  .btn{background:var(--navy);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:14px;font-weight:600;cursor:pointer;
+       transition:transform .12s cubic-bezier(.2,.8,.2,1),background .2s}
+  .btn:hover{background:var(--navy2)} .btn:active{transform:scale(.97)}
+  .btn.go{background:var(--orange);color:var(--navy)}
+  .btn.ghost{background:#fff;color:var(--navy);border:1px solid var(--line)}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px}
+  .pill.ok{background:var(--okbg);color:var(--ok)} .pill.warn{background:var(--warnbg);color:var(--warn)} .pill.blue{background:var(--bluebg);color:var(--blue)}
+  .bar{height:10px;border-radius:999px;background:#eef1f4;overflow:hidden}
+  .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--orange),#ffce6b);width:0;border-radius:999px;
+           transition:width .5s cubic-bezier(.2,.8,.2,1)}
+  .row{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+  .row:first-child{border-top:none}
+  .fname{font-weight:600;color:var(--navy)} .dim{color:var(--muted);font-size:12px}
+  .mini{height:6px;border-radius:999px;background:#eef1f4;overflow:hidden;flex:1;max-width:160px}
+  .mini > i{display:block;height:100%;background:var(--navy);width:0;transition:width .5s}
+  .spin{width:16px;height:16px;border:2px solid #e5e7eb;border-top-color:var(--orange);border-radius:50%;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .tot{display:flex;justify-content:space-between;padding:7px 0;border-top:1px dashed var(--line);font-size:13px}
+  .tot b{color:var(--navy)}
+  .q{background:#fffdf6;border:1px solid #f0d89a;border-radius:10px;padding:12px 14px;margin:10px 0}
+  .q label{display:block;font-size:13px;font-weight:600;color:var(--warn);margin-bottom:6px}
+  .q input,.q select{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px}
+  .gap{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;background:#fff8ee;border:1px solid #f0d89a;border-radius:10px;padding:12px 14px;margin-top:12px}
+  .gap input{width:140px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;text-align:right}
+  .stepwrap{display:flex;gap:8px;margin:0 0 18px}
+  .step{flex:1;text-align:center;font-size:12px;color:var(--muted);padding-bottom:8px;border-bottom:3px solid var(--line)}
+  .step.on{color:var(--navy);font-weight:600;border-color:var(--orange)}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:4px 0 0}
+  .stat{background:#f8fafc;border-radius:10px;padding:12px}
+  .stat .l{font-size:12px;color:var(--muted)} .stat .v{font-size:20px;font-weight:700;color:var(--navy);font-family:"Book Antiqua",Georgia,serif}
+  .hide{display:none}
+  .fade{animation:fade .4s ease both}@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+</style></head>
+<body><div class="app">
+  <div class="top"><div class="logo">A</div><h1>Alpha Direct · Graphite</h1>
+    <span class="crumb">Underwriting › Smart Upload</span></div>
+  <div class="wrap">
+    <div class="stepwrap">
+      <div class="step on" id="s1">1 · Upload</div>
+      <div class="step" id="s2">2 · Extracting</div>
+      <div class="step" id="s3">3 · Review &amp; issue</div>
+    </div>
+
+    <!-- STATE 1: UPLOAD -->
+    <div id="state1">
+      <div class="card fade">
+        <p class="h">Drop the broker closing</p>
+        <p class="sub">One ZIP of the whole account, or any mix of .xlsx / .xls / .pdf. Local AI does the work; Gemini assists. Nothing fails — anything unclear becomes a quick question.</p>
+        <div class="drop" onclick="go2()"><div class="ic">⬆</div>
+          <p style="margin:10px 0 2px;font-weight:600;color:var(--navy)">Drag a ZIP or files here, or click to browse</p>
+          <p class="dim">Whole account in one go — every sheet, every file</p></div>
+        <div style="margin-top:16px;display:flex;gap:10px">
+          <button class="btn go" onclick="go2()">Upload &amp; extract</button>
+          <button class="btn ghost">Download blank template</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATE 2: EXTRACTING -->
+    <div id="state2" class="hide">
+      <div class="card fade">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+          <p class="h" style="margin:0">Reading the closing…</p>
+          <span class="pill blue" id="eng"><span class="spin"></span> local AI · Gemini assisting</span>
+          <span class="dim" style="margin-left:auto" id="eta">about 2 min left</span>
+        </div>
+        <div class="bar" style="margin:14px 0 6px"><i id="pbar"></i></div>
+        <p class="dim"><span id="pct">0</span>% · <span id="pdone">0</span> of 5 files · <span id="psheet">0</span> sheets read</p>
+        <div id="filelist" style="margin-top:10px"></div>
+      </div>
+    </div>
+
+    <!-- STATE 3: REVIEW -->
+    <div id="state3" class="hide">
+      <div class="card fade">
+        <div style="display:flex;align-items:center;gap:12px">
+          <p class="h" style="margin:0">Review &amp; issue — 5 risks extracted</p>
+          <span class="pill ok" style="margin-left:auto">4 tie to broker totals</span>
+          <span class="pill warn">1 needs you</span>
+        </div>
+        <div class="grid" style="margin-top:14px">
+          <div class="stat"><div class="l">Total sum insured</div><div class="v">P2.5 bn</div></div>
+          <div class="stat"><div class="l">Total premium (excl VAT)</div><div class="v">P3.15 m</div></div>
+          <div class="stat"><div class="l">VAT @ 14%</div><div class="v">P441 k</div></div>
+          <div class="stat"><div class="l">Premium (incl VAT)</div><div class="v">P3.59 m</div></div>
+        </div>
+      </div>
+
+      <div class="card fade">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="fname">Logistics Co (Pty) Ltd</span>
+          <span class="dim">renewal · COM20230001XX · monthly</span>
+          <span class="pill ok" style="margin-left:auto">✓ ties — SI 73,412,196.96</span>
+        </div>
+        <div style="margin-top:12px">
+          <div class="tot"><span>Buildings combined</span><b>P11,427,000 SI · P25,250</b></div>
+          <div class="tot"><span>Motor (37 vehicles)</span><b>P59,602,197 SI · P1,393,358</b></div>
+          <div class="tot"><span>Engineering</span><b>P2,383,000 SI · P13,000</b></div>
+        </div>
+        <div class="gap">
+          <span><b>Premium gap.</b> Line items sum to P1,431,608 but the schedule charges P1,013,600 (70% motor deposit + 8% admin).</span>
+          <span style="margin-left:auto">Final premium to bill:</span>
+          <input value="1,013,600.60" />
+          <button class="btn ghost" style="padding:8px 12px">Apply</button>
+        </div>
+        <div style="margin-top:14px"><button class="btn go">Confirm &amp; issue policy</button>
+          <button class="btn ghost">Open full schedule</button></div>
+      </div>
+
+      <div class="card fade">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="fname">Game Lodge Group (Pty) Ltd</span>
+          <span class="dim">renewal · COM20210004XX · PDF · 7 camps</span>
+          <span class="pill warn" style="margin-left:auto">2 quick questions</span>
+        </div>
+        <div class="q"><label>Couldn't read the VAT registration number from the PDF</label>
+          <input placeholder="Type VAT reg no (or leave blank if none)"></div>
+        <div class="q"><label>Kolokolo Camp — contents value was cut off in the PDF. Pick or type:</label>
+          <select><option>P 83,200 (best guess from text)</option><option>P 832,000</option><option>Type a different value…</option></select></div>
+        <div class="tot" style="margin-top:8px"><span>Property — all camps (Fire &amp; Allied)</span><b>P206,533,420 SI · P561,830</b></div>
+        <div style="margin-top:14px"><button class="btn go">Confirm &amp; issue policy</button>
+          <button class="btn ghost">Open full schedule</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function set(id,on){document.getElementById(id).classList.toggle('on',on)}
+function show(n){for(var i=1;i<=3;i++){document.getElementById('state'+i).classList.toggle('hide',i!==n);set('s'+i,i<=n)}}
+var files=[["Retail chain renewal.xlsx","60 sheets"],["Multi-subsidiary group.xlsx","10 sheets"],["Logistics multi-peril.xlsx","2 sheets"],["Distribution group.xls","4 sheets"],["Game lodge schedule.pdf","7 pages"]];
+function go2(){show(2);renderFiles();animate()}
+function renderFiles(){var h='';files.forEach(function(f,i){h+='<div class="row"><span class="fname">'+f[0]+'</span><span class="dim">'+f[1]+'</span><div class="mini" style="margin-left:auto"><i id="m'+i+'"></i></div><span class="dim" id="t'+i+'" style="width:64px;text-align:right">queued</span></div>'});document.getElementById('filelist').innerHTML=h}
+function animate(){var p=0,sheets=0,fileN=0;var iv=setInterval(function(){p+=4;if(p>100)p=100;
+  document.getElementById('pbar').style.width=p+'%';document.getElementById('pct').textContent=p;
+  sheets=Math.round(p/100*83);document.getElementById('psheet').textContent=sheets;
+  fileN=Math.min(5,Math.floor(p/20));document.getElementById('pdone').textContent=fileN;
+  var left=Math.max(0,Math.round((100-p)*1.2));document.getElementById('eta').textContent=left>0?('about '+left+'s left'):'done';
+  files.forEach(function(f,i){var fp=Math.max(0,Math.min(100,(p-i*18)*1.6));var m=document.getElementById('m'+i);var t=document.getElementById('t'+i);if(m){m.style.width=fp+'%';t.textContent=fp>=100?'✓ read':(fp>0?Math.round(fp)+'%':'queued');t.style.color=fp>=100?'var(--ok)':'var(--muted)'}});
+  if(p>=100){clearInterval(iv);setTimeout(function(){show(3)},600)}},230)}
+</script></body></html>

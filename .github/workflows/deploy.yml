@@ -1,0 +1,1719 @@
+name: Build & Deploy Graphite v2
+
+# Concurrency: if a new commit lands on main while an earlier run is
+# mid-flight, cancel the older one. Before this, 3 commits pushed back-
+# to-back = 3 full pipelines (one of which is already obsolete the moment
+# the next push lands). Now only the latest deploys — huge saving on
+# bursty dev days. Manual workflow_dispatch gets its own group so a
+# manual run isn't killed by a subsequent code push.
+concurrency:
+  group: deploy-${{ github.event_name }}-${{ github.event.inputs.deploy_target || 'push' }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+on:
+  push:
+    branches: [main]
+    # Only trigger on code changes in deployable trees. Doc-only PRs
+    # touching README.md / PARITY_AUDITS/** / SESSION_HANDOFF.md at repo
+    # root are already excluded because they don't match any of these.
+    # (paths + paths-ignore together is broken in GH Actions — if both
+    #  are specified, paths-ignore is silently dropped. So we keep it
+    #  simple: just paths.)
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'cron/**'
+      - 'ace/**'
+      - 'smart-uw-engine/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: 'What to deploy'
+        required: true
+        type: choice
+        options:
+          - all
+          - backend-only
+          - frontend-only
+          - cron-only
+          - ace-only
+          - ace-infra
+          - cron-infra
+          - fix-ssl
+          - fix-port80
+          - base-image
+          - run-artisan
+          - promote-to-prod
+          - smartuw-to-prod
+          - smartuw-to-staging
+          - smartuw-engine
+        default: all
+      artisan_command:
+        description: 'Artisan command to run (only used when deploy_target = run-artisan)'
+        required: false
+        default: 'policy:cleanup-duplicate-coverages --dry-run'
+      artisan_service:
+        description: 'Which ECS service to run the command on: backend or cron'
+        default: backend
+
+env:
+  AWS_REGION: af-south-1
+  ECR_REGISTRY: 623467544388.dkr.ecr.af-south-1.amazonaws.com
+  ECS_CLUSTER: graphite-cluster
+  CRON_DOMAIN: graphite-v2-cron.alphadirect.co.bw
+  BE_DOMAIN: graphite-v2-be.alphadirect.co.bw
+  FE_DOMAIN: graphite-v2-fe.alphadirect.co.bw
+  ACE_DOMAIN: ace.alphadirect.co.bw
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # ── Detect what changed ────────────────────────────────────
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    # continue-on-error: workflow_dispatch events have no base diff,
+    # causing paths-filter to error. Dependent jobs use || deploy_target
+    # conditions so they still run correctly when this job fails/errors.
+    continue-on-error: true
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      cron: ${{ steps.filter.outputs.cron }}
+      ace: ${{ steps.filter.outputs.ace }}
+      smartuw: ${{ steps.filter.outputs.smartuw }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+            cron:
+              - 'cron/**'
+            ace:
+              - 'ace/**'
+            smartuw:
+              - 'smart-uw-engine/**'
+
+  # NOTE: `test-frontend` and `test-backend` jobs were removed as cost
+  # optimisation — they duplicated ~4 min of work per run that the
+  # build-* jobs already do:
+  #   • test-frontend ran `npm install + tsc --noEmit`, but the Vite
+  #     production build inside build-frontend's Dockerfile already
+  #     type-checks via rollup. Same failure, one minute earlier.
+  #   • test-backend ran a full `docker build` and a class_exists smoke
+  #     test. build-backend then did the EXACT same docker build.
+  #     Killing the duplicate saves ~2 min every deploy.
+  # Net effect: faster feedback on failure (builds fail at the same
+  # point) + ~4 min less billable minutes per run.
+
+  # ── Build Base Image (manual only) ─────────────────────────
+  build-base:
+    name: Build PHP Base Image
+    runs-on: ubuntu-latest
+    if: github.event.inputs.deploy_target == 'base-image'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push base image
+        working-directory: ./backend
+        run: |
+          docker build -f Dockerfile.base -t $ECR_REGISTRY/graphite-base:latest .
+          docker push $ECR_REGISTRY/graphite-base:latest
+
+  # ── Build Backend ──────────────────────────────────────────
+  # Uses docker/build-push-action + buildx GHA cache. composer.json /
+  # source layers that haven't changed are reused from the cache rather
+  # than rebuilt. Typical saving: ~1:30 off a 2:20 build when only app
+  # code changed, ~2 min when even that didn't change (rare but happens
+  # on force-rebuilds).
+  build-backend:
+    name: Build & Push Backend
+    runs-on: ubuntu-latest
+    needs: [changes]
+    # Event-aware: paths-filter outputs are only reliable for `push` events.
+    # For `workflow_dispatch` we must rely solely on `deploy_target` — otherwise
+    # the artisan job and other narrow targets race against a phantom build.
+    if: |
+      always() && (
+        (github.event_name == 'push' && needs.changes.outputs.backend == 'true') ||
+        github.event.inputs.deploy_target == 'all' ||
+        github.event.inputs.deploy_target == 'backend-only'
+      )
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          build-args: BASE_IMAGE=${{ env.ECR_REGISTRY }}/graphite-base:latest
+          tags: |
+            ${{ env.ECR_REGISTRY }}/graphite-backend:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/graphite-backend:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
+
+  # ── Build Smart UW engine (Python sidecar) ─────────────────
+  # The engine runs as the `smartuw-engine` sidecar INSIDE the backend task
+  # (smart-uw-engine/Dockerfile, FROM python:3.12-slim — no graphite-base).
+  # Build + push :sha and :latest, then force-redeploy the STAGING backend so
+  # the sidecar picks up the new :latest. PROD is untouched here — the prod
+  # sidecar is refreshed by `promote-to-prod` (which force-new-deploys it).
+  build-smartuw-engine:
+    name: Build & Push Smart UW Engine
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: |
+      always() && (
+        (github.event_name == 'push' && needs.changes.outputs.smartuw == 'true') ||
+        github.event.inputs.deploy_target == 'all' ||
+        github.event.inputs.deploy_target == 'smartuw-engine'
+      )
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./smart-uw-engine
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/smartuw-engine:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/smartuw-engine:latest
+          cache-from: type=gha,scope=smartuw-engine
+          cache-to: type=gha,scope=smartuw-engine,mode=max
+      - name: Force-redeploy STAGING backend (pull new sidecar :latest)
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service graphite-backend \
+            --force-new-deployment \
+            --region $AWS_REGION \
+            --query "service.serviceName" --output text
+      - name: Wait for stability
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services graphite-backend --region $AWS_REGION || true
+      - name: Summary
+        run: |
+          echo "### Smart UW Engine Deployed (staging sidecar) :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "- Image: \`smartuw-engine:${{ github.sha }}\` + \`:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Staging backend force-redeployed to pull it." >> $GITHUB_STEP_SUMMARY
+          echo "- PROD sidecar refreshes via promote-to-prod." >> $GITHUB_STEP_SUMMARY
+
+  # ── Build Frontend ─────────────────────────────────────────
+  # Same buildx cache pattern as backend. npm install layer is cached
+  # when package-lock.json hasn't changed (most runs).
+  build-frontend:
+    name: Build & Push Frontend
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: |
+      always() && (
+        (github.event_name == 'push' && needs.changes.outputs.frontend == 'true') ||
+        github.event.inputs.deploy_target == 'all' ||
+        github.event.inputs.deploy_target == 'frontend-only'
+      )
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+      - name: Validate VITE_API_URL secret
+        run: |
+          if [ -z "${{ secrets.VITE_API_URL }}" ]; then
+            echo "::error::VITE_API_URL secret is not set. Go to repo Settings → Secrets → Actions and add VITE_API_URL=https://graphite-v2-be.alphadirect.co.bw"
+            exit 1
+          fi
+          if echo "${{ secrets.VITE_API_URL }}" | grep -q "localhost"; then
+            echo "::error::VITE_API_URL is set to localhost — this bakes localhost into the production build. Set it to https://graphite-v2-be.alphadirect.co.bw"
+            exit 1
+          fi
+          echo "VITE_API_URL is set to: ${{ secrets.VITE_API_URL }}"
+      - name: Build and push (staging — VITE_API_URL points at graphite-v2-be)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          build-args: VITE_API_URL=${{ secrets.VITE_API_URL }}
+          tags: |
+            ${{ env.ECR_REGISTRY }}/graphite-frontend:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/graphite-frontend:latest
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+
+      # Build a SECOND variant with VITE_API_URL pointing at the production
+      # backend (graphite-v2-prod-be). React's build inlines VITE_* env vars
+      # into the bundle at compile time, so a single image cannot serve
+      # both staging and prod — they each need their own build with their
+      # own API URL baked in.
+      #
+      # This step produces image tags graphite-frontend:prod-{sha} +
+      # graphite-frontend:prod-latest. The graphite-prod-frontend ECS task
+      # definition references the :prod-latest tag.
+      #
+      # If VITE_API_URL_PROD secret isn't set yet, this step is skipped so
+      # staging builds aren't blocked. Add the secret at:
+      #   Settings → Secrets and variables → Actions → New repository secret
+      #   Name: VITE_API_URL_PROD
+      #   Value: https://graphite-v2-prod-be.alphadirect.co.bw
+      # GitHub Actions doesn't allow `secrets.X` directly in `if:` — surface
+      # to env first so the conditional expression can compare it.
+      - name: Detect prod secret
+        id: detect_prod
+        env:
+          PROD_URL: ${{ secrets.VITE_API_URL_PROD }}
+        run: |
+          if [ -n "$PROD_URL" ]; then
+            echo "has_prod=true" >> "$GITHUB_OUTPUT"
+            echo "VITE_API_URL_PROD is set — will build prod variant"
+          else
+            echo "has_prod=false" >> "$GITHUB_OUTPUT"
+            echo "VITE_API_URL_PROD not set — skipping prod variant build"
+          fi
+
+      - name: Build and push (prod — VITE_API_URL points at graphite-v2-prod-be)
+        if: steps.detect_prod.outputs.has_prod == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          build-args: VITE_API_URL=${{ secrets.VITE_API_URL_PROD }}
+          tags: |
+            ${{ env.ECR_REGISTRY }}/graphite-frontend:prod-${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/graphite-frontend:prod-latest
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend-prod,mode=max
+
+  # ── Build Cron ─────────────────────────────────────────────
+  # Same pattern. Cron Dockerfile inherits from the graphite-base image
+  # so its own layers are typically small.
+  build-cron:
+    name: Build & Push Cron
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: |
+      always() && (
+        (github.event_name == 'push' && needs.changes.outputs.cron == 'true') ||
+        github.event.inputs.deploy_target == 'all' ||
+        github.event.inputs.deploy_target == 'cron-only'
+      )
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./cron
+          push: true
+          build-args: BASE_IMAGE=${{ env.ECR_REGISTRY }}/graphite-base:latest
+          tags: |
+            ${{ env.ECR_REGISTRY }}/graphite-cron:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/graphite-cron:latest
+          cache-from: type=gha,scope=cron
+          cache-to: type=gha,scope=cron,mode=max
+
+  # ── Deploy Backend (independent) ──────────────────────────
+  # Before 2026-06-09 this job only called `update-service --force-new-deployment`
+  # which DID NOT update the task definition's image SHA. Task defs were pinned
+  # to a SHA that wasn't being bumped, so every "deploy" just re-pulled the same
+  # old image. Result: pushes to main appeared to succeed but the new code
+  # never landed on the running container.
+  #
+  # The fix mirrors the deploy-ace + promote-to-prod pattern already used
+  # elsewhere in this file:
+  #   describe-task-definition  → swap in the new image SHA  →
+  #   register a new task-def revision  →  update-service with the new revision.
+  #
+  # The new image SHA is github.sha — the build-backend job above pushes both
+  # graphite-backend:${github.sha} and graphite-backend:latest, and pinning to
+  # the SHA gives us per-commit traceability (you can tell which commit is
+  # running by reading the task def's image tag).
+  deploy-backend:
+    name: Deploy Backend
+    needs: [build-backend]
+    if: always() && needs.build-backend.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Register new task definition with new image SHA
+        id: td
+        run: |
+          NEW_IMAGE=$ECR_REGISTRY/graphite-backend:${{ github.sha }}
+
+          TD=$(aws ecs describe-task-definition \
+            --task-definition graphite-backend \
+            --region $AWS_REGION --query taskDefinition --output json)
+
+          NEW_TD=$(echo "$TD" | jq --arg img "$NEW_IMAGE" '
+            .containerDefinitions[0].image = $img |
+            del(.taskDefinitionArn,.revision,.status,.compatibilities,
+                .registeredAt,.registeredBy,.requiresAttributes,.deregisteredAt)')
+
+          NEW_REV=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TD" \
+            --region $AWS_REGION \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          echo "task_def=$NEW_REV" >> $GITHUB_OUTPUT
+          echo "Registered: $NEW_REV (image: $NEW_IMAGE)"
+      - name: Deploy
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service graphite-backend \
+            --task-definition ${{ steps.td.outputs.task_def }} \
+            --force-new-deployment \
+            --query "service.serviceName" --output text
+      - name: Wait for stability
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services graphite-backend || true
+      - name: Summary
+        run: |
+          echo "### Backend Deployed :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "- https://graphite-v2-be.alphadirect.co.bw" >> $GITHUB_STEP_SUMMARY
+          echo "- Task def: ${{ steps.td.outputs.task_def }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Image: \`graphite-backend:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+
+  # ── Deploy Frontend (independent) ──────────────────────────
+  # Same task-def-update fix as deploy-backend — see the comment block on
+  # that job for the why. Frontend uses the staging-variant image tag
+  # (:${github.sha}) which build-frontend pushes alongside :latest. The
+  # prod-variant image (graphite-frontend:prod-${github.sha}) is consumed by
+  # the separate promote-to-prod job.
+  deploy-frontend:
+    name: Deploy Frontend
+    needs: [build-frontend]
+    if: always() && needs.build-frontend.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Register new task definition with new image SHA
+        id: td
+        run: |
+          NEW_IMAGE=$ECR_REGISTRY/graphite-frontend:${{ github.sha }}
+
+          TD=$(aws ecs describe-task-definition \
+            --task-definition graphite-frontend \
+            --region $AWS_REGION --query taskDefinition --output json)
+
+          NEW_TD=$(echo "$TD" | jq --arg img "$NEW_IMAGE" '
+            .containerDefinitions[0].image = $img |
+            del(.taskDefinitionArn,.revision,.status,.compatibilities,
+                .registeredAt,.registeredBy,.requiresAttributes,.deregisteredAt)')
+
+          NEW_REV=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TD" \
+            --region $AWS_REGION \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          echo "task_def=$NEW_REV" >> $GITHUB_OUTPUT
+          echo "Registered: $NEW_REV (image: $NEW_IMAGE)"
+      - name: Deploy
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service graphite-frontend \
+            --task-definition ${{ steps.td.outputs.task_def }} \
+            --force-new-deployment \
+            --query "service.serviceName" --output text
+      - name: Wait for stability
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services graphite-frontend || true
+      - name: Summary
+        run: |
+          echo "### Frontend Deployed :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "- https://graphite-v2-fe.alphadirect.co.bw" >> $GITHUB_STEP_SUMMARY
+          echo "- Task def: ${{ steps.td.outputs.task_def }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Image: \`graphite-frontend:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+
+  # ── Build ACE ──────────────────────────────────────────────
+  # Same buildx + GHA cache pattern as the other build jobs.
+  build-ace:
+    name: Build & Push ACE Frontend
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: |
+      always() && (
+        (github.event_name == 'push' && needs.changes.outputs.ace == 'true') ||
+        github.event.inputs.deploy_target == 'all' ||
+        github.event.inputs.deploy_target == 'ace-only'
+      )
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ace/frontend
+          push: true
+          build-args: |
+            VITE_API_URL=${{ secrets.VITE_API_URL }}
+            VITE_GRAPHITE_URL=https://${{ env.FE_DOMAIN }}
+          tags: |
+            ${{ env.ECR_REGISTRY }}/graphite-ace:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/graphite-ace:latest
+          cache-from: type=gha,scope=ace
+          cache-to: type=gha,scope=ace,mode=max
+
+  # ── Deploy ACE ─────────────────────────────────────────────
+  deploy-ace:
+    name: Deploy ACE Frontend
+    needs: [build-ace]
+    if: always() && needs.build-ace.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Update task definition image
+        run: |
+          # Full SHA — docker/build-push-action pushes with the full SHA
+          # from ${{ github.sha }} rather than the 8-char truncation the
+          # old bash `docker build` used. Both formats work as ECR tags;
+          # standardising on full SHA so build and deploy match.
+          IMAGE_TAG=$GITHUB_SHA
+          NEW_IMAGE=$ECR_REGISTRY/graphite-ace:$IMAGE_TAG
+
+          TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition graphite-ace \
+            --query "taskDefinition" --output json)
+
+          NEW_TASK_DEF=$(echo $TASK_DEF | python3 -c "
+          import json, sys
+          td = json.load(sys.stdin)
+          td['containerDefinitions'][0]['image'] = '$NEW_IMAGE'
+          for k in ['taskDefinitionArn','revision','status','requiresAttributes','compatibilities','registeredAt','registeredBy']:
+              td.pop(k, None)
+          print(json.dumps(td))
+          ")
+
+          NEW_REVISION=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --query "taskDefinition.taskDefinitionArn" --output text)
+
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service graphite-ace \
+            --task-definition $NEW_REVISION \
+            --force-new-deployment \
+            --query "service.serviceName" --output text
+      - name: Wait for stability
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services graphite-ace || true
+      - name: Summary
+        run: |
+          echo "### ACE Deployed :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "- https://${{ env.ACE_DOMAIN }}" >> $GITHUB_STEP_SUMMARY
+
+  # ── ACE infra: manual only — run ONCE on first deploy ─────
+  # Creates: ECR repo, CloudWatch log group, target group,
+  #          ALB host-header rule, ECS service.
+  # Trigger: workflow_dispatch → ace-infra
+  setup-ace-infra:
+    name: Setup ACE Infrastructure
+    runs-on: ubuntu-latest
+    if: github.event.inputs.deploy_target == 'ace-infra'
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Create ECR repo
+        run: |
+          aws ecr describe-repositories --repository-names graphite-ace --region $AWS_REGION 2>/dev/null || \
+          aws ecr create-repository \
+            --repository-name graphite-ace \
+            --region $AWS_REGION \
+            --image-scanning-configuration scanOnPush=true \
+            --query "repository.repositoryUri" --output text
+          echo "ECR repo: $ECR_REGISTRY/graphite-ace"
+      - name: Create CloudWatch log group
+        run: |
+          aws logs create-log-group --log-group-name /ecs/graphite-ace --region $AWS_REGION 2>/dev/null || true
+          aws logs put-retention-policy --log-group-name /ecs/graphite-ace --retention-in-days 30 --region $AWS_REGION
+          echo "Log group: /ecs/graphite-ace"
+      - name: Register initial task definition
+        run: |
+          # Use latest image if already pushed, else placeholder
+          IMAGE=$(aws ecr describe-images \
+            --repository-name graphite-ace --region $AWS_REGION \
+            --query "sort_by(imageDetails,&imagePushedAt)[-1].imageTags[0]" \
+            --output text 2>/dev/null || echo "latest")
+          FULL_IMAGE="$ECR_REGISTRY/graphite-ace:$IMAGE"
+
+          aws ecs register-task-definition \
+            --family graphite-ace \
+            --network-mode awsvpc \
+            --requires-compatibilities FARGATE \
+            --cpu 256 --memory 512 \
+            --execution-role-arn arn:aws:iam::623467544388:role/graphite-ecs-task-execution \
+            --container-definitions "[{
+              \"name\": \"graphite-ace\",
+              \"image\": \"$FULL_IMAGE\",
+              \"essential\": true,
+              \"portMappings\": [{\"containerPort\": 80, \"protocol\": \"tcp\"}],
+              \"logConfiguration\": {
+                \"logDriver\": \"awslogs\",
+                \"options\": {
+                  \"awslogs-group\": \"/ecs/graphite-ace\",
+                  \"awslogs-region\": \"$AWS_REGION\",
+                  \"awslogs-stream-prefix\": \"ecs\"
+                }
+              },
+              \"healthCheck\": {
+                \"command\": [\"CMD-SHELL\", \"wget -q --spider http://localhost/ || exit 1\"],
+                \"interval\": 30, \"timeout\": 5, \"retries\": 3, \"startPeriod\": 10
+              }
+            }]"
+          echo "Task definition registered: graphite-ace"
+      - name: Create target group + ALB host rule
+        run: |
+          set -e
+
+          ALB_ARN=$(aws elbv2 describe-load-balancers --region $AWS_REGION \
+            --query "LoadBalancers[?contains(LoadBalancerName,'graphite')].LoadBalancerArn | [0]" \
+            --output text)
+          VPC_ID=$(aws elbv2 describe-load-balancers \
+            --load-balancer-arns $ALB_ARN --region $AWS_REGION \
+            --query "LoadBalancers[0].VpcId" --output text)
+
+          # Target group (idempotent)
+          TG_ARN=$(aws elbv2 describe-target-groups --region $AWS_REGION \
+            --names "graphite-ace-tg" \
+            --query "TargetGroups[0].TargetGroupArn" \
+            --output text 2>/dev/null || echo "None")
+
+          if [ "$TG_ARN" = "None" ] || [ -z "$TG_ARN" ]; then
+            TG_ARN=$(aws elbv2 create-target-group \
+              --region $AWS_REGION \
+              --name "graphite-ace-tg" \
+              --protocol HTTP --port 80 \
+              --vpc-id $VPC_ID \
+              --target-type ip \
+              --health-check-path "/" \
+              --health-check-interval-seconds 30 \
+              --healthy-threshold-count 2 \
+              --unhealthy-threshold-count 3 \
+              --query "TargetGroups[0].TargetGroupArn" \
+              --output text)
+            echo "Created target group: $TG_ARN"
+          else
+            echo "Target group exists: $TG_ARN"
+          fi
+
+          # Add host-header rule on port-443 listener (HTTPS)
+          LISTENER_ARN=$(aws elbv2 describe-listeners \
+            --load-balancer-arn $ALB_ARN --region $AWS_REGION \
+            --query "Listeners[?Port==\`443\`].ListenerArn | [0]" \
+            --output text)
+
+          if [ "$LISTENER_ARN" != "None" ] && [ -n "$LISTENER_ARN" ]; then
+            # Get current max priority
+            MAX_PRIORITY=$(aws elbv2 describe-rules \
+              --listener-arn $LISTENER_ARN --region $AWS_REGION \
+              --query "max(Rules[?Priority!='default'].Priority)" \
+              --output text 2>/dev/null || echo "10")
+            NEXT_PRIORITY=$((MAX_PRIORITY + 10))
+
+            aws elbv2 create-rule \
+              --listener-arn $LISTENER_ARN \
+              --region $AWS_REGION \
+              --priority $NEXT_PRIORITY \
+              --conditions "[{\"Field\":\"host-header\",\"Values\":[\"ace.alphadirect.co.bw\"]}]" \
+              --actions "[{\"Type\":\"forward\",\"TargetGroupArn\":\"$TG_ARN\"}]" 2>/dev/null || \
+            echo "ALB rule already exists — skipping"
+          fi
+
+          echo "TG_ARN=$TG_ARN" >> $GITHUB_OUTPUT
+      - name: Create ECS service
+        run: |
+          TG_ARN=$(aws elbv2 describe-target-groups --region $AWS_REGION \
+            --names "graphite-ace-tg" \
+            --query "TargetGroups[0].TargetGroupArn" --output text)
+
+          ECS_SG=$(aws ec2 describe-security-groups \
+            --region $AWS_REGION \
+            --filters "Name=group-name,Values=graphite-ecs-sg" \
+            --query "SecurityGroups[0].GroupId" --output text)
+
+          aws ecs create-service \
+            --region $AWS_REGION \
+            --cluster $ECS_CLUSTER \
+            --service-name graphite-ace \
+            --task-definition graphite-ace \
+            --desired-count 1 \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={
+              subnets=[subnet-5fd13536,subnet-31505649,subnet-3cd4f576],
+              securityGroups=[$ECS_SG],
+              assignPublicIp=ENABLED
+            }" \
+            --load-balancers "targetGroupArn=$TG_ARN,containerName=graphite-ace,containerPort=80" \
+            --deployment-configuration "maximumPercent=200,minimumHealthyPercent=100" \
+            2>/dev/null || echo "Service already exists — skipping"
+
+          echo ""
+          echo "=== ACE INFRASTRUCTURE READY ==="
+          echo "  Service:   graphite-ace"
+          echo "  Domain:    https://ace.alphadirect.co.bw"
+          echo "  Next step: Add DNS CNAME ace.alphadirect.co.bw → ALB"
+          echo "  Then run:  ace-only deploy to push first image"
+
+  # ── Cron infra: manual only — run once when first deploying ───
+  # Trigger: workflow_dispatch → cron-infra
+  # Creates: ALB target group, listener rule, port 80 on task def
+  # After first run, never needed again unless infra is deleted.
+  setup-cron-infra:
+    name: Setup Cron Infrastructure
+    needs: [build-cron]
+    if: github.event.inputs.deploy_target == 'cron-infra'
+    runs-on: ubuntu-latest
+    outputs:
+      tg_arn: ${{ steps.infra.outputs.tg_arn }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Ensure ALB target group + listener rule exist
+        id: infra
+        run: |
+          set -e
+
+          ALB_ARN=$(aws elbv2 describe-load-balancers --region $AWS_REGION \
+            --query "LoadBalancers[?contains(LoadBalancerName,'graphite')].LoadBalancerArn | [0]" \
+            --output text)
+
+          VPC_ID=$(aws elbv2 describe-load-balancers \
+            --load-balancer-arns $ALB_ARN --region $AWS_REGION \
+            --query "LoadBalancers[0].VpcId" --output text)
+
+          # ── Target group ────────────────────────────────────────
+          TG_ARN=$(aws elbv2 describe-target-groups --region $AWS_REGION \
+            --names "graphite-cron-tg" \
+            --query "TargetGroups[0].TargetGroupArn" \
+            --output text 2>/dev/null || echo "None")
+
+          if [ "$TG_ARN" = "None" ] || [ -z "$TG_ARN" ]; then
+            echo "Creating target group..."
+            TG_ARN=$(aws elbv2 create-target-group \
+              --region $AWS_REGION \
+              --name "graphite-cron-tg" \
+              --protocol HTTP --port 80 \
+              --vpc-id $VPC_ID \
+              --target-type ip \
+              --health-check-path "/health" \
+              --health-check-interval-seconds 30 \
+              --healthy-threshold-count 2 \
+              --unhealthy-threshold-count 3 \
+              --matcher "HttpCode=200" \
+              --query "TargetGroups[0].TargetGroupArn" --output text)
+          else
+            echo "Target group already exists — skipping."
+          fi
+          echo "tg_arn=$TG_ARN" >> $GITHUB_OUTPUT
+
+          # ── ALB listener rule ────────────────────────────────────
+          LISTENER_ARN=$(aws elbv2 describe-listeners \
+            --load-balancer-arn $ALB_ARN --region $AWS_REGION \
+            --query "Listeners[?Port==\`80\`].ListenerArn | [0]" \
+            --output text)
+
+          RULE_EXISTS=$(aws elbv2 describe-rules \
+            --listener-arn $LISTENER_ARN --region $AWS_REGION \
+            --query "Rules[?Conditions[?Field=='host-header' && Values[?contains(@,'$CRON_DOMAIN')]]].[RuleArn] | [0]" \
+            --output text 2>/dev/null || echo "None")
+
+          if [ "$RULE_EXISTS" = "None" ] || [ -z "$RULE_EXISTS" ]; then
+            echo "Creating listener rule..."
+            aws elbv2 create-rule \
+              --region $AWS_REGION \
+              --listener-arn $LISTENER_ARN \
+              --priority 30 \
+              --conditions "[{\"Field\":\"host-header\",\"Values\":[\"$CRON_DOMAIN\"]}]" \
+              --actions "[{\"Type\":\"forward\",\"TargetGroupArn\":\"$TG_ARN\"}]" \
+              --output text
+          else
+            echo "Listener rule already exists — skipping."
+          fi
+
+          # ── Port 80 on task definition ───────────────────────────
+          CURRENT_TD=$(aws ecs describe-services \
+            --cluster $ECS_CLUSTER --services graphite-cron --region $AWS_REGION \
+            --query "services[0].taskDefinition" --output text)
+
+          HAS_PORT=$(aws ecs describe-task-definition \
+            --task-definition $CURRENT_TD --region $AWS_REGION \
+            --query "taskDefinition.containerDefinitions[0].portMappings[?containerPort==\`80\`]" \
+            --output text)
+
+          if [ -z "$HAS_PORT" ]; then
+            echo "Adding port 80 to task definition..."
+            TD_JSON=$(aws ecs describe-task-definition \
+              --task-definition $CURRENT_TD --region $AWS_REGION \
+              --query "taskDefinition" --output json)
+
+            NEW_TD=$(echo $TD_JSON | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          for c in d.get('containerDefinitions', []):
+              ports = c.get('portMappings', [])
+              if not any(p.get('containerPort') == 80 for p in ports):
+                  ports.append({'containerPort': 80, 'protocol': 'tcp'})
+                  c['portMappings'] = ports
+          keep = ['family','containerDefinitions','executionRoleArn','taskRoleArn',
+                  'networkMode','requiresCompatibilities','cpu','memory','volumes']
+          print(json.dumps({k: d[k] for k in keep if k in d}))
+          ")
+            CONTAINER_NAME=$(aws ecs describe-task-definition \
+              --task-definition $CURRENT_TD --region $AWS_REGION \
+              --query "taskDefinition.containerDefinitions[0].name" --output text)
+
+            NEW_TD_ARN=$(aws ecs register-task-definition \
+              --region $AWS_REGION --cli-input-json "$NEW_TD" \
+              --query "taskDefinition.taskDefinitionArn" --output text)
+
+            aws ecs update-service \
+              --region $AWS_REGION --cluster $ECS_CLUSTER --service graphite-cron \
+              --task-definition $NEW_TD_ARN \
+              --load-balancers "[{\"targetGroupArn\":\"$TG_ARN\",\"containerName\":\"$CONTAINER_NAME\",\"containerPort\":80}]" \
+              --query "service.serviceName" --output text
+            echo "Task definition updated with port 80."
+          else
+            echo "Port 80 already configured — skipping."
+          fi
+
+          # ── ACM certificate (same as fe/be) ──────────────────────
+          CERT_ARN=$(aws acm list-certificates --region $AWS_REGION \
+            --query "CertificateSummaryList[?DomainName=='$CRON_DOMAIN'].CertificateArn | [0]" \
+            --output text)
+
+          if [ "$CERT_ARN" = "None" ] || [ -z "$CERT_ARN" ]; then
+            echo "Requesting ACM certificate for $CRON_DOMAIN ..."
+            CERT_ARN=$(aws acm request-certificate \
+              --region $AWS_REGION \
+              --domain-name $CRON_DOMAIN \
+              --validation-method DNS \
+              --query "CertificateArn" --output text)
+            sleep 15
+          fi
+          echo "ACM Cert ARN: $CERT_ARN"
+
+          # Get validation CNAME (retry up to 5x)
+          for i in 1 2 3 4 5; do
+            read VAL_NAME VAL_VALUE <<< $(aws acm describe-certificate \
+              --region $AWS_REGION --certificate-arn $CERT_ARN \
+              --query "Certificate.DomainValidationOptions[0].[ResourceRecord.Name,ResourceRecord.Value]" \
+              --output text 2>/dev/null)
+            [ -n "$VAL_NAME" ] && [ "$VAL_NAME" != "None" ] && break
+            echo "Waiting for validation record... ($i/5)" && sleep 10
+          done
+
+          VAL_NAME_CLEAN=$(echo $VAL_NAME | sed 's/\.$//')
+          VAL_SHORT=$(echo $VAL_NAME_CLEAN | sed 's/\.alphadirect\.co\.bw//')
+
+          # Attach cert to ALB HTTPS listener
+          HTTPS_LISTENER=$(aws elbv2 describe-listeners \
+            --load-balancer-arn $ALB_ARN --region $AWS_REGION \
+            --query "Listeners[?Port==\`443\`].ListenerArn | [0]" \
+            --output text 2>/dev/null || true)
+
+          if [ -n "$HTTPS_LISTENER" ] && [ "$HTTPS_LISTENER" != "None" ]; then
+            aws elbv2 add-listener-certificates \
+              --region $AWS_REGION \
+              --listener-arn $HTTPS_LISTENER \
+              --certificates "CertificateArn=$CERT_ARN" 2>/dev/null \
+              && echo "Cert added to ALB HTTPS listener" || echo "Cert already on listener"
+          fi
+
+          # Output Terraform snippet to job summary
+          echo "## Add to cloudflare.tf (same as graphite_v2_fe_acm / graphite_v2_be_acm)" >> $GITHUB_STEP_SUMMARY
+          echo '```hcl' >> $GITHUB_STEP_SUMMARY
+          echo "resource \"cloudflare_record\" \"graphite_v2_cron_acm\" {" >> $GITHUB_STEP_SUMMARY
+          echo "  name    = \"$VAL_SHORT\"" >> $GITHUB_STEP_SUMMARY
+          echo "  proxied = false" >> $GITHUB_STEP_SUMMARY
+          echo "  ttl     = 1" >> $GITHUB_STEP_SUMMARY
+          echo "  type    = \"CNAME\"" >> $GITHUB_STEP_SUMMARY
+          echo "  value   = \"$VAL_VALUE\"" >> $GITHUB_STEP_SUMMARY
+          echo "  zone_id = var.alphadirect_co_bw_zone_id" >> $GITHUB_STEP_SUMMARY
+          echo "}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # ── Deploy Cron — same task-def-update pattern as fe and be ───
+  # See deploy-backend's comment block for why a plain force-new-deployment
+  # isn't enough.
+  deploy-cron:
+    name: Deploy Cron
+    needs: [build-cron]
+    if: always() && needs.build-cron.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Register new task definition with new image SHA
+        id: td
+        run: |
+          NEW_IMAGE=$ECR_REGISTRY/graphite-cron:${{ github.sha }}
+
+          TD=$(aws ecs describe-task-definition \
+            --task-definition graphite-cron \
+            --region $AWS_REGION --query taskDefinition --output json)
+
+          NEW_TD=$(echo "$TD" | jq --arg img "$NEW_IMAGE" '
+            .containerDefinitions[0].image = $img |
+            del(.taskDefinitionArn,.revision,.status,.compatibilities,
+                .registeredAt,.registeredBy,.requiresAttributes,.deregisteredAt)')
+
+          NEW_REV=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TD" \
+            --region $AWS_REGION \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          echo "task_def=$NEW_REV" >> $GITHUB_OUTPUT
+          echo "Registered: $NEW_REV (image: $NEW_IMAGE)"
+      - name: Deploy
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service graphite-cron \
+            --task-definition ${{ steps.td.outputs.task_def }} \
+            --force-new-deployment \
+            --query "service.serviceName" --output text
+      - name: Wait for stability
+        run: aws ecs wait services-stable --cluster $ECS_CLUSTER --services graphite-cron || true
+      - name: Summary
+        run: |
+          echo "### Cron Deployed :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "- https://$CRON_DOMAIN" >> $GITHUB_STEP_SUMMARY
+          echo "- Task def: ${{ steps.td.outputs.task_def }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Image: \`graphite-cron:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+
+  # ── Fix SSL: attach ACM certs to ALB for fe, be, cron ────────
+  # Run manually: workflow_dispatch → fix-ssl
+  # Finds existing ACM certs for all 3 domains, attaches to ALB HTTPS listener.
+  fix-ssl:
+    name: Fix SSL (attach ACM certs to ALB)
+    runs-on: ubuntu-latest
+    if: github.event.inputs.deploy_target == 'fix-ssl'
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Attach ACM certs to ALB HTTPS listener
+        run: |
+          set -e
+
+          ALB_ARN=$(aws elbv2 describe-load-balancers --region $AWS_REGION \
+            --query "LoadBalancers[?contains(LoadBalancerName,'graphite')].LoadBalancerArn | [0]" \
+            --output text)
+          echo "ALB: $ALB_ARN"
+
+          # Get HTTPS listener (port 443)
+          LISTENER_ARN=$(aws elbv2 describe-listeners \
+            --load-balancer-arn $ALB_ARN --region $AWS_REGION \
+            --query "Listeners[?Port==\`443\`].ListenerArn | [0]" \
+            --output text)
+
+          if [ -z "$LISTENER_ARN" ] || [ "$LISTENER_ARN" = "None" ]; then
+            echo "ERROR: No HTTPS (port 443) listener found on ALB."
+            echo "The ALB needs a port 443 listener. Create it in AWS Console:"
+            echo "  EC2 → Load Balancers → $ALB_ARN → Listeners → Add listener → HTTPS:443"
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## ❌ No HTTPS listener found" >> $GITHUB_STEP_SUMMARY
+            echo "Create a port 443 listener on the ALB in AWS Console first." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "HTTPS Listener: $LISTENER_ARN"
+
+          # Domains to fix
+          DOMAINS=(
+            "graphite-v2-fe.alphadirect.co.bw"
+            "graphite-v2-be.alphadirect.co.bw"
+            "$CRON_DOMAIN"
+          )
+
+          echo "## SSL Certificate Status" >> $GITHUB_STEP_SUMMARY
+          echo "| Domain | Cert Status | Attached |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------------|----------|" >> $GITHUB_STEP_SUMMARY
+
+          for DOMAIN in "${DOMAINS[@]}"; do
+            echo "--- Processing $DOMAIN ---"
+
+            # Find cert
+            CERT_ARN=$(aws acm list-certificates --region $AWS_REGION \
+              --query "CertificateSummaryList[?DomainName=='$DOMAIN'].CertificateArn | [0]" \
+              --output text)
+
+            if [ -z "$CERT_ARN" ] || [ "$CERT_ARN" = "None" ]; then
+              echo "No cert found for $DOMAIN — requesting..."
+              CERT_ARN=$(aws acm request-certificate \
+                --region $AWS_REGION \
+                --domain-name $DOMAIN \
+                --validation-method DNS \
+                --query "CertificateArn" --output text)
+              echo "| $DOMAIN | Requested (needs DNS validation) | No |" >> $GITHUB_STEP_SUMMARY
+              continue
+            fi
+
+            # Get cert status
+            CERT_STATUS=$(aws acm describe-certificate \
+              --region $AWS_REGION --certificate-arn $CERT_ARN \
+              --query "Certificate.Status" --output text)
+            echo "$DOMAIN cert status: $CERT_STATUS"
+
+            if [ "$CERT_STATUS" = "ISSUED" ]; then
+              # Attach to listener
+              aws elbv2 add-listener-certificates \
+                --region $AWS_REGION \
+                --listener-arn $LISTENER_ARN \
+                --certificates "CertificateArn=$CERT_ARN" 2>/dev/null \
+                && ATTACH_RESULT="✅ Attached" \
+                || ATTACH_RESULT="✅ Already attached"
+              echo "| $DOMAIN | ISSUED | $ATTACH_RESULT |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| $DOMAIN | $CERT_STATUS (not yet issued) | No |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "If any certs show 'PENDING_VALIDATION' — the DNS validation CNAME is missing from Cloudflare." >> $GITHUB_STEP_SUMMARY
+
+  # ── Fix Port-80: add HTTP listener rules for BE and FE ───────
+  # Run manually: workflow_dispatch → fix-port80
+  # Cloudflare Flexible SSL connects to origin on HTTP port 80.
+  # BE/FE only had port-443 rules — this adds port-80 rules so
+  # Cloudflare can reach them and serve HTTPS to the browser.
+  fix-port80:
+    name: Fix Port-80 (BE + FE ALB listener rules)
+    runs-on: ubuntu-latest
+    if: github.event.inputs.deploy_target == 'fix-port80'
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Ensure port-80 ALB rules exist for BE and FE
+        run: |
+          set -e
+
+          ALB_ARN=$(aws elbv2 describe-load-balancers --region $AWS_REGION \
+            --query "LoadBalancers[?contains(LoadBalancerName,'graphite')].LoadBalancerArn | [0]" \
+            --output text)
+          echo "ALB: $ALB_ARN"
+
+          # Port-80 listener (already created by cron-infra)
+          HTTP_LISTENER=$(aws elbv2 describe-listeners \
+            --load-balancer-arn $ALB_ARN --region $AWS_REGION \
+            --query "Listeners[?Port==\`80\`].ListenerArn | [0]" \
+            --output text)
+
+          if [ -z "$HTTP_LISTENER" ] || [ "$HTTP_LISTENER" = "None" ]; then
+            echo "No port-80 listener found — creating..."
+            # Default action: 404 fixed response (individual rules forward to TGs)
+            HTTP_LISTENER=$(aws elbv2 create-listener \
+              --region $AWS_REGION \
+              --load-balancer-arn $ALB_ARN \
+              --protocol HTTP --port 80 \
+              --default-actions "Type=fixed-response,FixedResponseConfig={StatusCode=404,ContentType=text/plain,MessageBody=Not Found}" \
+              --query "Listeners[0].ListenerArn" --output text)
+            echo "Created HTTP listener: $HTTP_LISTENER"
+          else
+            echo "HTTP listener exists: $HTTP_LISTENER"
+          fi
+
+          echo "## Port-80 Rule Status" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Domain | Target Group | Rule |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|--------------|------|" >> $GITHUB_STEP_SUMMARY
+
+          for PAIR in "graphite-backend:$BE_DOMAIN" "graphite-frontend:$FE_DOMAIN"; do
+            SERVICE=$(echo $PAIR | cut -d: -f1)
+            DOMAIN=$(echo $PAIR | cut -d: -f2)
+
+            echo "--- Processing $SERVICE ($DOMAIN) ---"
+
+            # Get target group ARN from ECS service load balancer config
+            TG_ARN=$(aws ecs describe-services \
+              --cluster $ECS_CLUSTER --services $SERVICE --region $AWS_REGION \
+              --query "services[0].loadBalancers[0].targetGroupArn" --output text 2>/dev/null)
+
+            if [ -z "$TG_ARN" ] || [ "$TG_ARN" = "None" ]; then
+              echo "| $SERVICE | $DOMAIN | ❌ Not found | Skipped |" >> $GITHUB_STEP_SUMMARY
+              echo "WARNING: No target group found for $SERVICE — is the ECS service running?"
+              continue
+            fi
+            echo "$SERVICE target group: $TG_ARN"
+
+            # Check if a port-80 host-header rule already exists for this domain
+            RULE_EXISTS=$(aws elbv2 describe-rules \
+              --listener-arn $HTTP_LISTENER --region $AWS_REGION \
+              --query "Rules[?Conditions[?Field=='host-header' && Values[?contains(@,'$DOMAIN')]]].[RuleArn] | [0]" \
+              --output text 2>/dev/null || echo "None")
+
+            if [ "$RULE_EXISTS" = "None" ] || [ -z "$RULE_EXISTS" ]; then
+              # Find the highest priority in use, then pick next available (max+1)
+              # ALB priorities: lower number = higher precedence; default rule has no priority
+              MAX_PRI=$(aws elbv2 describe-rules \
+                --listener-arn $HTTP_LISTENER --region $AWS_REGION \
+                --query "Rules[?Priority!='default'].Priority" \
+                --output text | tr '\t' '\n' | sort -n | tail -1)
+              PRIORITY=$(( ${MAX_PRI:-0} + 1 ))
+              echo "Using priority $PRIORITY for $DOMAIN"
+              aws elbv2 create-rule \
+                --region $AWS_REGION \
+                --listener-arn $HTTP_LISTENER \
+                --priority $PRIORITY \
+                --conditions "[{\"Field\":\"host-header\",\"Values\":[\"$DOMAIN\"]}]" \
+                --actions "[{\"Type\":\"forward\",\"TargetGroupArn\":\"$TG_ARN\"}]" \
+                --output text
+              echo "| $SERVICE | $DOMAIN | ✅ | ✅ Created (priority $PRIORITY) |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| $SERVICE | $DOMAIN | ✅ | ✅ Already exists |" >> $GITHUB_STEP_SUMMARY
+              echo "Rule already exists for $DOMAIN"
+            fi
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "After this runs, https://graphite-v2-be.alphadirect.co.bw and https://graphite-v2-fe.alphadirect.co.bw should show SSL via Cloudflare Flexible." >> $GITHUB_STEP_SUMMARY
+
+  # ── Run Artisan Command (manual only) ────────────────────────
+  # Trigger: workflow_dispatch → run-artisan
+  # Runs any "php artisan <command>" inside the live backend ECS task.
+  # Streams output to the GitHub Actions log.
+  run-artisan:
+    name: Run Artisan Command
+    runs-on: ubuntu-latest
+    if: github.event.inputs.deploy_target == 'run-artisan'
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve ECS service name and container name
+        id: svc
+        run: |
+          INPUT="${{ github.event.inputs.artisan_service }}"
+          SERVICE="${INPUT:-backend}"
+          if [ "$SERVICE" = "cron" ]; then
+            echo "ecs_service=graphite-cron"    >> $GITHUB_OUTPUT
+            echo "container=graphite-cron"      >> $GITHUB_OUTPUT
+          else
+            echo "ecs_service=graphite-backend" >> $GITHUB_OUTPUT
+            echo "container=graphite-backend"   >> $GITHUB_OUTPUT
+          fi
+          echo "Running on service: $SERVICE"
+
+      - name: Get task definition
+        id: td
+        run: |
+          TD=$(aws ecs describe-services \
+            --cluster $ECS_CLUSTER \
+            --services ${{ steps.svc.outputs.ecs_service }} \
+            --region $AWS_REGION \
+            --query "services[0].taskDefinition" \
+            --output text)
+          echo "task_def=$TD" >> $GITHUB_OUTPUT
+          echo "Task definition: $TD"
+
+      - name: Get network config
+        id: net
+        run: |
+          NET=$(aws ecs describe-services \
+            --cluster $ECS_CLUSTER \
+            --services ${{ steps.svc.outputs.ecs_service }} \
+            --region $AWS_REGION \
+            --query "services[0].networkConfiguration" \
+            --output json)
+          SUBNETS=$(echo $NET | python3 -c "import sys,json; d=json.load(sys.stdin); print(','.join(d['awsvpcConfiguration']['subnets']))")
+          SGS=$(echo $NET | python3 -c "import sys,json; d=json.load(sys.stdin); print(','.join(d['awsvpcConfiguration']['securityGroups']))")
+          echo "subnets=$SUBNETS" >> $GITHUB_OUTPUT
+          echo "sgs=$SGS" >> $GITHUB_OUTPUT
+
+      - name: Run artisan command as one-off ECS task
+        id: run
+        run: |
+          COMMAND="${{ github.event.inputs.artisan_command }}"
+          CONTAINER="${{ steps.svc.outputs.container }}"
+          echo "Running: php artisan $COMMAND on $CONTAINER"
+
+          # Wrap the artisan invocation in `sh -c` that first fixes storage
+          # perms and ensures required log dirs exist. The ECS `command`
+          # override REPLACES the image's CMD (which is /entrypoint.sh) —
+          # so without this wrapper the entrypoint's chmod/mkdir steps
+          # never run, and PHP fails to bootstrap (can't write compiled
+          # views to EFS-mounted storage). The result is exit 1 with
+          # "no log events" because the container dies before any output
+          # reaches the awslogs driver. Pre-fixing perms makes one-off
+          # tasks reliable regardless of which command is invoked.
+          SHELL_CMD="cd /var/www/html && \
+            chmod -R 777 storage bootstrap/cache 2>/dev/null || true && \
+            mkdir -p storage/logs storage/app/cron-logs storage/framework/sessions storage/framework/views storage/framework/cache && \
+            exec php artisan ${COMMAND}"
+
+          # Escape for JSON: backslash, then double-quote
+          ESCAPED_SHELL_CMD=$(printf '%s' "$SHELL_CMD" | sed 's/\\/\\\\/g; s/"/\\"/g')
+          CMD_JSON="[\"sh\",\"-c\",\"${ESCAPED_SHELL_CMD}\"]"
+          OVERRIDES="{\"containerOverrides\":[{\"name\":\"${CONTAINER}\",\"command\":${CMD_JSON}}]}"
+          echo "Overrides: $OVERRIDES"
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster $ECS_CLUSTER \
+            --task-definition ${{ steps.td.outputs.task_def }} \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.net.outputs.subnets }}],securityGroups=[${{ steps.net.outputs.sgs }}],assignPublicIp=ENABLED}" \
+            --overrides "$OVERRIDES" \
+            --region $AWS_REGION \
+            --query "tasks[0].taskArn" \
+            --output text)
+
+          echo "task_arn=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "Task ARN: $TASK_ARN"
+
+      - name: Wait for task to finish
+        timeout-minutes: 120
+        run: |
+          echo "Waiting for task to complete (up to 120 min)..."
+          MAX=480   # 480 × 15s = 120 minutes
+          COUNT=0
+          while [ $COUNT -lt $MAX ]; do
+            sleep 15
+            TASK_STATUS=$(aws ecs describe-tasks \
+              --cluster $ECS_CLUSTER \
+              --tasks ${{ steps.run.outputs.task_arn }} \
+              --region $AWS_REGION \
+              --query "tasks[0].lastStatus" --output text 2>/dev/null)
+            COUNT=$((COUNT + 1))
+            echo "  [$COUNT] Status: $TASK_STATUS"
+            if [ "$TASK_STATUS" = "STOPPED" ]; then
+              echo "Task finished."
+              break
+            fi
+          done
+          if [ "$TASK_STATUS" != "STOPPED" ]; then
+            echo "::warning::Task did not stop within 30 minutes — check CloudWatch"
+          fi
+
+      - name: Check exit code and print summary
+        run: |
+          RESULT=$(aws ecs describe-tasks \
+            --cluster $ECS_CLUSTER \
+            --tasks ${{ steps.run.outputs.task_arn }} \
+            --region $AWS_REGION \
+            --query "tasks[0].containers[0].{exit:exitCode,reason:reason,status:lastStatus}" \
+            --output json)
+
+          EXIT_CODE=$(echo $RESULT | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('exit','?'))")
+          STOP_REASON=$(echo $RESULT | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('reason','') or '(none)')")
+          echo "Exit code: $EXIT_CODE"
+          echo "Stop reason: $STOP_REASON"
+
+          # Give CloudWatch agent time to flush stdout/stderr after task STOPPED.
+          # 10s was too short for verbose commands like `schedule:list` (hundreds
+          # of lines) — log events would appear in CloudWatch ~30-45s after the
+          # task stopped, after the workflow had already given up and printed
+          # "no log events". 45s is comfortable for the awslogs driver to ship
+          # everything; even small commands waste at most ~30s here.
+          sleep 45
+
+          LOG_GROUP="/ecs/${{ steps.svc.outputs.ecs_service }}"
+          TASK_ID=$(echo "${{ steps.run.outputs.task_arn }}" | cut -d/ -f3)
+          LOG_STREAM="ecs/${{ steps.svc.outputs.container }}/${TASK_ID}"
+
+          # Poll CloudWatch for up to 90s waiting for events to appear. The
+          # awslogs driver ships in batches and a verbose command (e.g.
+          # schedule:list with 67+ rows) can take 30-60s after the task stops
+          # before the final lines reach the stream. A single get-log-events
+          # call too early returns empty. Poll until non-empty or timeout.
+          echo ""
+          echo "════════════════════════════════════════════════════════"
+          echo "  ARTISAN OUTPUT  (log group: $LOG_GROUP)"
+          echo "  stream: $LOG_STREAM"
+          echo "════════════════════════════════════════════════════════"
+          OUTPUT=""
+          for attempt in 1 2 3 4 5 6 7 8 9; do
+            OUTPUT=$(aws logs get-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --log-stream-name "$LOG_STREAM" \
+              --region $AWS_REGION \
+              --start-from-head \
+              --limit 500 \
+              --query "events[*].message" \
+              --output text 2>/dev/null || true)
+            if [ -n "$OUTPUT" ]; then
+              break
+            fi
+            echo "  ... waiting for log events (attempt $attempt/9)"
+            sleep 10
+          done
+          if [ -z "$OUTPUT" ]; then
+            OUTPUT="(no log events after 90s — stream may not exist yet or task exited before writing)"
+          fi
+          echo "$OUTPUT"
+          echo "════════════════════════════════════════════════════════"
+
+          echo "## Artisan Command Result" >> $GITHUB_STEP_SUMMARY
+          echo "**Service:** \`${{ steps.svc.outputs.ecs_service }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Command:** \`php artisan ${{ github.event.inputs.artisan_command }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Exit code:** $EXIT_CODE" >> $GITHUB_STEP_SUMMARY
+          echo "**Stop reason:** $STOP_REASON" >> $GITHUB_STEP_SUMMARY
+          echo "**Task ARN:** ${{ steps.run.outputs.task_arn }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Output" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$OUTPUT" | head -200 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Full log: AWS Console → CloudWatch → Log Groups → \`$LOG_GROUP\` → \`$LOG_STREAM\`" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "::error::Artisan command exited with code $EXIT_CODE"
+            exit 1
+          fi
+
+  # ── Promote staging images to PROD tier ──────────────────────
+  # Triggered manually via workflow_dispatch with deploy_target=promote-to-prod.
+  # Takes whatever is currently tagged graphite-backend:latest (staging) and
+  # graphite-frontend:prod-latest (prod-variant FE built with VITE_API_URL_PROD)
+  # and force-deploys them to the prod-tier ECS services
+  # (graphite-prod-backend / graphite-prod-frontend).
+  #
+  # This is the only path that updates the prod tier — push-to-main alone
+  # only deploys to the staging tier (graphite-backend / graphite-frontend).
+  # Deliberate gate: staging is verified first, then promoted.
+  promote-to-prod:
+    name: Promote Staging → Prod
+    # IMPORTANT: this is a manual workflow_dispatch only. It does NOT depend on
+    # build-backend / build-frontend because those jobs only run when their
+    # respective paths-filter detects relevant changes. The promote job
+    # consumes whatever is CURRENTLY tagged :latest in ECR — by convention,
+    # operators only fire promote-to-prod after a successful push-to-main
+    # has finished building staging, so :latest reflects the intended commit.
+    #
+    # If you fire promote-to-prod IMMEDIATELY after a push, you may race the
+    # build and re-tag the previous commit's image. Fix: wait for the
+    # push-to-main run to go green before triggering promote.
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'promote-to-prod'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Wait for graphite-backend:${{ github.sha }} build to land in ECR
+        run: |
+          # Race-safety: the workflow_dispatch event may run BEFORE the
+          # push-to-main build has finished pushing the image for this SHA.
+          # If we used :latest blindly, we'd promote whatever the previous
+          # commit's image was. Instead, poll for the exact SHA tag — this
+          # guarantees we promote THIS commit's code.
+          SHA="${{ github.sha }}"
+          FOUND_DIGEST=""
+          for i in $(seq 1 40); do
+            DIGEST=$(aws ecr describe-images \
+              --repository-name graphite-backend \
+              --image-ids imageTag=$SHA \
+              --region $AWS_REGION \
+              --query 'imageDetails[0].imageDigest' --output text 2>/dev/null || true)
+            if [ -n "$DIGEST" ] && [ "$DIGEST" != "None" ]; then
+              echo "✓ graphite-backend:$SHA found at $DIGEST"
+              FOUND_DIGEST="$DIGEST"
+              break
+            fi
+            echo "Attempt $i/40: backend SHA tag not yet in ECR (build still running?). Waiting 30s..."
+            sleep 30
+          done
+          if [ -z "$FOUND_DIGEST" ]; then
+            echo "::error::graphite-backend:$SHA never landed in ECR after 20 minutes"
+            exit 1
+          fi
+          echo "BE_SHA_DIGEST=$FOUND_DIGEST" >> $GITHUB_ENV
+
+      - name: Re-tag staging backend image as prod
+        run: |
+          # Now we know the exact SHA tag exists. Pull that digest and re-tag
+          # as prod-{sha} + prod-latest. Atomic — no rebuild.
+          DIGEST="${{ env.BE_SHA_DIGEST }}"
+          echo "Promoting graphite-backend@$DIGEST → prod-${{ github.sha }} + prod-latest"
+
+          MANIFEST=$(aws ecr batch-get-image \
+            --repository-name graphite-backend \
+            --image-ids imageDigest=$DIGEST \
+            --region $AWS_REGION \
+            --query 'images[0].imageManifest' --output text)
+
+          aws ecr put-image --repository-name graphite-backend \
+            --image-tag prod-${{ github.sha }} \
+            --image-manifest "$MANIFEST" --region $AWS_REGION || true
+          aws ecr put-image --repository-name graphite-backend \
+            --image-tag prod-latest \
+            --image-manifest "$MANIFEST" --region $AWS_REGION || true
+
+      - name: Update graphite-prod-backend task def with new image
+        id: be_td
+        run: |
+          # Take the latest registered prod-backend task def, swap in the
+          # newly-promoted image tag, register a new revision.
+          TD=$(aws ecs describe-task-definition \
+            --task-definition graphite-prod-backend \
+            --region $AWS_REGION --query taskDefinition --output json)
+
+          NEW_TD=$(echo "$TD" | jq --arg img "$ECR_REGISTRY/graphite-backend:prod-${{ github.sha }}" '
+            .containerDefinitions[0].image = $img |
+            del(.taskDefinitionArn,.revision,.status,.compatibilities,
+                .registeredAt,.registeredBy,.requiresAttributes)')
+
+          NEW_REV=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TD" \
+            --region $AWS_REGION \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "task_def=$NEW_REV" >> $GITHUB_OUTPUT
+          echo "Registered: $NEW_REV"
+
+      - name: Force-redeploy graphite-prod-backend
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service graphite-prod-backend \
+            --task-definition ${{ steps.be_td.outputs.task_def }} \
+            --force-new-deployment \
+            --region $AWS_REGION \
+            --query 'service.serviceName' --output text
+
+      - name: Re-tag prod-frontend image (already has prod-latest from build)
+        run: |
+          # The push-to-main pipeline already builds a prod-variant FE image
+          # tagged graphite-frontend:prod-latest with VITE_API_URL_PROD baked in.
+          # Just verify it exists.
+          aws ecr describe-images \
+            --repository-name graphite-frontend \
+            --image-ids imageTag=prod-latest \
+            --region $AWS_REGION \
+            --query 'imageDetails[0].imageDigest' --output text
+
+      - name: Update graphite-prod-frontend task def
+        id: fe_td
+        run: |
+          TD=$(aws ecs describe-task-definition \
+            --task-definition graphite-prod-frontend \
+            --region $AWS_REGION --query taskDefinition --output json)
+
+          NEW_TD=$(echo "$TD" | jq --arg img "$ECR_REGISTRY/graphite-frontend:prod-${{ github.sha }}" '
+            .containerDefinitions[0].image = $img |
+            del(.taskDefinitionArn,.revision,.status,.compatibilities,
+                .registeredAt,.registeredBy,.requiresAttributes)')
+
+          NEW_REV=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TD" \
+            --region $AWS_REGION \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "task_def=$NEW_REV" >> $GITHUB_OUTPUT
+
+      - name: Force-redeploy graphite-prod-frontend
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service graphite-prod-frontend \
+            --task-definition ${{ steps.fe_td.outputs.task_def }} \
+            --force-new-deployment \
+            --region $AWS_REGION \
+            --query 'service.serviceName' --output text
+
+      - name: Wait for both services to stabilize
+        run: |
+          aws ecs wait services-stable \
+            --cluster $ECS_CLUSTER \
+            --services graphite-prod-backend graphite-prod-frontend \
+            --region $AWS_REGION || true
+
+      - name: Summary
+        run: |
+          echo "## ✅ Promoted to Prod" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | New revision |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| graphite-prod-backend | ${{ steps.be_td.outputs.task_def }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| graphite-prod-frontend | ${{ steps.fe_td.outputs.task_def }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**URLs:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Frontend: https://graphite-v2-prod-fe.alphadirect.co.bw" >> $GITHUB_STEP_SUMMARY
+          echo "- Backend:  https://graphite-v2-prod-be.alphadirect.co.bw" >> $GITHUB_STEP_SUMMARY
+
+  # ── Add Smart UW engine + worker to PROD backend (one-shot, idempotent) ──
+  # Production's graphite-prod-backend task had ONLY the web container — no
+  # smartuw-engine sidecar and no smartuw-worker — so the 'smartuw' queue had
+  # no consumer on prod and Smart Underwriting uploads hung in "Extracting"
+  # forever. Staging (graphite-backend) already runs both and works; this
+  # mirrors that proven setup onto prod, cloning the worker's env + secrets
+  # from the LIVE prod web container (prod DB / Redis / S3 — NOT staging's).
+  # Idempotent: re-running is a no-op if both containers already exist.
+  # promote-to-prod only swaps containerDefinitions[0].image, so once added
+  # here these containers persist across future promotes.
+  # Trigger: workflow_dispatch → smartuw-to-prod
+  smartuw-to-prod:
+    name: Add Smart UW to Prod backend
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'smartuw-to-prod'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Register prod task def with smartuw-engine + smartuw-worker
+        id: td
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, subprocess, os, copy
+          REGION = os.environ["AWS_REGION"]
+          REG = os.environ["ECR_REGISTRY"]
+          SSM = "arn:aws:ssm:af-south-1:623467544388:parameter/graphite/GEMINI_API_KEY"
+          def aws_json(*a):
+              return json.loads(subprocess.check_output(["aws", *a, "--region", REGION, "--output", "json"]))
+          def aws_text(*a):
+              return subprocess.check_output(["aws", *a, "--region", REGION, "--output", "text"]).decode().strip()
+          td = aws_json("ecs", "describe-task-definition", "--task-definition", "graphite-prod-backend", "--query", "taskDefinition")
+          cds = td["containerDefinitions"]
+          names = [c["name"] for c in cds]
+          web = next(c for c in cds if c["name"] == "graphite-backend")
+          def ensure_engine_url(c):
+              envs = c.setdefault("environment", [])
+              if not any(e["name"] == "SMARTUW_ENGINE_URL" for e in envs):
+                  # 8099, not 8088: the engine image sets ENV PORT=8099, EXPOSEs
+                  # 8099 and its HEALTHCHECK probes 8099 (smart-uw-engine/Dockerfile).
+                  # Containers in an awsvpc task share one network namespace, so the
+                  # LISTEN port is what matters here, not the portMappings entry —
+                  # pointing the caller at 8088 gave a straight ECONNREFUSED.
+                  envs.append({"name": "SMARTUW_ENGINE_URL", "value": "http://localhost:8099"})
+          ensure_engine_url(web)
+          if "smartuw-engine" not in names:
+              cds.append({
+                  "name": "smartuw-engine",
+                  "image": REG + "/smartuw-engine:latest",
+                  "essential": False,
+                  "portMappings": [{"containerPort": 8099, "hostPort": 8099, "protocol": "tcp"}],
+                  "environment": [{"name": "SMARTUW_GEMINI_MODEL", "value": "gemini-2.5-flash"}],
+                  "secrets": [{"name": "GEMINI_API_KEY", "valueFrom": SSM}],
+                  "logConfiguration": {"logDriver": "awslogs", "options": {"awslogs-group": "/ecs/graphite-backend", "awslogs-region": REGION, "awslogs-stream-prefix": "smartuw-engine-prod"}},
+              })
+          if "smartuw-worker" not in names:
+              w = copy.deepcopy(web)
+              w["name"] = "smartuw-worker"
+              w["essential"] = False
+              w["command"] = ["sh", "-c", "php artisan queue:work --queue=smartuw --sleep=3 --tries=1 --timeout=1300"]
+              w["portMappings"] = []
+              w.pop("healthCheck", None)
+              ensure_engine_url(w)
+              w["logConfiguration"] = {"logDriver": "awslogs", "options": {"awslogs-group": "/ecs/graphite-backend", "awslogs-region": REGION, "awslogs-stream-prefix": "smartuw-worker-prod"}}
+              cds.append(w)
+          td["cpu"] = "2048"
+          td["memory"] = "4096"
+          for k in ["taskDefinitionArn", "revision", "status", "compatibilities", "registeredAt", "registeredBy", "requiresAttributes", "deregisteredAt", "enableFaultInjection"]:
+              td.pop(k, None)
+          json.dump(td, open("/tmp/newtd.json", "w"))
+          print("containers now:", [c["name"] for c in cds], "cpu/mem:", td["cpu"], td["memory"])
+          arn = aws_text("ecs", "register-task-definition", "--cli-input-json", "file:///tmp/newtd.json", "--query", "taskDefinition.taskDefinitionArn")
+          print("registered:", arn)
+          open(os.environ["GITHUB_OUTPUT"], "a").write("arn=%s\n" % arn)
+          PY
+
+      - name: Force-redeploy graphite-prod-backend
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service graphite-prod-backend \
+            --task-definition ${{ steps.td.outputs.arn }} \
+            --force-new-deployment \
+            --region $AWS_REGION \
+            --query 'service.serviceName' --output text
+
+      - name: Wait for stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster $ECS_CLUSTER \
+            --services graphite-prod-backend \
+            --region $AWS_REGION || true
+
+      - name: Summary
+        run: |
+          echo "## Smart UW added to PROD backend :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Service: \`graphite-prod-backend\`" >> $GITHUB_STEP_SUMMARY
+          echo "- New task def: \`${{ steps.td.outputs.arn }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Added: \`smartuw-engine\` sidecar (:8099) + \`smartuw-worker\` (queue=smartuw)" >> $GITHUB_STEP_SUMMARY
+          echo "- Backend: https://graphite-v2-prod-be.alphadirect.co.bw" >> $GITHUB_STEP_SUMMARY
+
+  # ── Add Smart UW engine sidecar to STAGING backend (one-shot, idempotent) ──
+  # graphite-backend had no smartuw-engine container, so extraction failed with
+  # "Extraction engine unreachable at http://localhost:8099 — cURL error 7"
+  # (2026-09-01): nothing was listening. This adds the sidecar and stamps
+  # SMARTUW_ENGINE_URL on the web container.
+  #
+  # Deliberately NO smartuw-worker clone here, unlike smartuw-to-prod:
+  #   • Extraction no longer needs a worker — SmartUnderwritingExtractJob::start()
+  #     spawns a detached `artisan smartuw:run` from the web container.
+  #   • deploy-backend re-images containerDefinitions[0] ONLY, so a worker cloned
+  #     from the web image would freeze on today's SHA and quietly run stale code
+  #     on every future deploy. The engine sidecar is safe because it carries its
+  #     own image (smartuw-engine:latest), refreshed by build-smartuw-engine's
+  #     force-new-deployment.
+  #
+  # Idempotent: re-running is a no-op once the container exists. It survives
+  # future deploys for the same reason — deploy-backend edits the live task def
+  # in place rather than re-registering one from a template.
+  # Trigger: workflow_dispatch -> smartuw-to-staging
+  smartuw-to-staging:
+    name: Add Smart UW engine to Staging backend
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_target == 'smartuw-to-staging'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Register staging task def with smartuw-engine
+        id: td
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, subprocess, os
+          REGION = os.environ["AWS_REGION"]
+          REG = os.environ["ECR_REGISTRY"]
+          SSM = "arn:aws:ssm:af-south-1:623467544388:parameter/graphite/GEMINI_API_KEY"
+          def aws_json(*a):
+              return json.loads(subprocess.check_output(["aws", *a, "--region", REGION, "--output", "json"]))
+          def aws_text(*a):
+              return subprocess.check_output(["aws", *a, "--region", REGION, "--output", "text"]).decode().strip()
+          td = aws_json("ecs", "describe-task-definition", "--task-definition", "graphite-backend", "--query", "taskDefinition")
+          cds = td["containerDefinitions"]
+          names = [c["name"] for c in cds]
+          web = next(c for c in cds if c["name"] == "graphite-backend")
+          # 8099, not 8088: the engine image sets ENV PORT=8099, EXPOSEs 8099 and
+          # HEALTHCHECKs 8099. Containers in an awsvpc task share one network
+          # namespace, so the LISTEN port is what the caller must use — the
+          # portMappings entry is not what makes localhost work.
+          envs = web.setdefault("environment", [])
+          if not any(e["name"] == "SMARTUW_ENGINE_URL" for e in envs):
+              envs.append({"name": "SMARTUW_ENGINE_URL", "value": "http://localhost:8099"})
+          if "smartuw-engine" not in names:
+              cds.append({
+                  "name": "smartuw-engine",
+                  "image": REG + "/smartuw-engine:latest",
+                  # Non-essential: a dead engine must not take the web container
+                  # (and the whole site) down with it.
+                  "essential": False,
+                  "portMappings": [{"containerPort": 8099, "hostPort": 8099, "protocol": "tcp"}],
+                  "environment": [{"name": "SMARTUW_GEMINI_MODEL", "value": "gemini-2.5-flash"}],
+                  "secrets": [{"name": "GEMINI_API_KEY", "valueFrom": SSM}],
+                  "logConfiguration": {"logDriver": "awslogs", "options": {"awslogs-group": "/ecs/graphite-backend", "awslogs-region": REGION, "awslogs-stream-prefix": "smartuw-engine"}},
+              })
+          # Headroom for the Python container, matching what prod runs. RAISE
+          # only — never shrink a staging task that is already bigger, which
+          # would OOM-kill the web container to make room for the engine.
+          if int(td.get("cpu") or 0) < 2048:
+              td["cpu"] = "2048"
+          if int(td.get("memory") or 0) < 4096:
+              td["memory"] = "4096"
+          for k in ["taskDefinitionArn", "revision", "status", "compatibilities", "registeredAt", "registeredBy", "requiresAttributes", "deregisteredAt", "enableFaultInjection"]:
+              td.pop(k, None)
+          json.dump(td, open("/tmp/newtd.json", "w"))
+          print("containers now:", [c["name"] for c in cds], "cpu/mem:", td["cpu"], td["memory"])
+          arn = aws_text("ecs", "register-task-definition", "--cli-input-json", "file:///tmp/newtd.json", "--query", "taskDefinition.taskDefinitionArn")
+          print("registered:", arn)
+          open(os.environ["GITHUB_OUTPUT"], "a").write("arn=%s\n" % arn)
+          PY
+
+      - name: Force-redeploy graphite-backend
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service graphite-backend \
+            --task-definition ${{ steps.td.outputs.arn }} \
+            --force-new-deployment \
+            --region $AWS_REGION \
+            --query 'service.serviceName' --output text
+
+      - name: Wait for stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster $ECS_CLUSTER \
+            --services graphite-backend \
+            --region $AWS_REGION || true
+
+      - name: Summary
+        run: |
+          echo "## Smart UW engine added to STAGING backend :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Service: \`graphite-backend\`" >> $GITHUB_STEP_SUMMARY
+          echo "- New task def: \`${{ steps.td.outputs.arn }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Added: \`smartuw-engine\` sidecar (:8099) + SMARTUW_ENGINE_URL on the web container" >> $GITHUB_STEP_SUMMARY
+          echo "- No worker container: extraction is started by a detached CLI process." >> $GITHUB_STEP_SUMMARY
+          echo "- Verify: upload a schedule, or \`php artisan smartuw:run --stuck\`" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,852 @@
+/* ============================================================================
+   FAC Register — design tokens and primitives
+   ============================================================================
+
+   Direction: DATA-DENSE PRO on the Alpha Direct Finance palette.
+
+   Why this direction. This is a payable register that a reinsurance clerk and
+   an accountant read all day, at arm's length, looking for the four or five
+   rows that are wrong. It is not a marketing surface. So the reference family
+   is the data-dense one — ClickHouse/PostHog structure: tight rows, tabular
+   figures, right-aligned money, sticky headers, 11–13px dominant, mono for
+   references. Light-first rather than the family's usual dark, because Graphite
+   is a light application and a dark island inside it reads as somebody else's
+   product.
+
+   Palette is the Alpha Direct Finance one — navy #0D1B2A as ink and authority,
+   orange #F4A623 as the ONE accent. Orange is used semantically, never
+   decoratively: it means "a human has to do something here". That is the whole
+   point of the register, so the register's accent colour should mean exactly
+   that and nothing else.
+
+   Typography. Book Antiqua is the Finance brand face and it is used on the
+   printed FAC slip, where it belongs. On screen, in an 11px table of 300 rows,
+   a serif is unreadable — so the screen uses the app's Inter with tabular
+   figures locked on, and the serif is reserved for the document. Deliberate
+   split, not an oversight.
+
+   Motion. Emil Kowalski: ease-out-expo, 140–260ms, transform and opacity only
+   so it stays on the compositor. Everything collapses to nothing under
+   prefers-reduced-motion.
+
+   Spacing. 4px base — 4/8/12/16/24/32/48. No arbitrary values.
+   ========================================================================= */
+
+:root {
+  /* ── Ink and surface ─────────────────────────────────────────────── */
+  --fac-navy:          #0D1B2A;
+  --fac-navy-soft:     #1B2C3F;
+  --fac-navy-line:     #24374d;
+
+  --fac-surface:       #ffffff;
+  --fac-surface-alt:   #f7f8fa;   /* zebra + table head */
+  --fac-surface-sunk:  #eef1f5;
+
+  --fac-ink:           #17202b;
+  --fac-ink-muted:     #55637a;   /* 6.2:1 on white */
+  /* Was #8b97a8, which measured 2.96:1 on white and 2.59:1 on the danger wash —
+     it failed WCAG AA on every tile label, hint and eyebrow in the register,
+     i.e. 57 unreadable-at-a-glance labels. #5c6a7d clears 4.5:1 on white AND on
+     all three tinted washes. "Muted" has to mean quieter, not unreadable. */
+  --fac-ink-dim:       #5c6a7d;
+
+  --fac-line:          #e4e8ee;
+  --fac-line-strong:   #ccd4df;
+
+  /* ── The one accent. Orange means "act on this". ──────────────────── */
+  --fac-accent:        #F4A623;
+  --fac-accent-ink:    #7a4d00;
+  --fac-accent-wash:   #fdf6e8;
+  --fac-accent-line:   #f5dfae;
+
+  /* ── Semantic states ─────────────────────────────────────────────── */
+  --fac-danger:        #c0392b;
+  --fac-danger-wash:   #fdeceb;
+  --fac-danger-line:   #f3c9c5;
+
+  --fac-ok:            #1f7a4d;
+  --fac-ok-wash:       #ecf7f1;
+  --fac-ok-line:       #c3e4d3;
+
+  --fac-info:          #1d4aff;
+  --fac-info-wash:     #eef2ff;
+  --fac-info-line:     #ccd8ff;
+
+  /* ── Spacing: 4px base ───────────────────────────────────────────── */
+  --fac-1: 4px;
+  --fac-2: 8px;
+  --fac-3: 12px;
+  --fac-4: 16px;
+  --fac-6: 24px;
+  --fac-8: 32px;
+
+  /* ── Type scale: 11/12/13/14/16/20/26 ────────────────────────────── */
+  --fac-text-micro: 11px;
+  --fac-text-xs:    12px;
+  --fac-text-sm:    13px;
+  --fac-text-base:  14px;
+  --fac-text-lg:    16px;
+  --fac-text-xl:    20px;
+  --fac-text-2xl:   26px;
+
+  --fac-radius:     6px;
+  --fac-radius-lg:  10px;
+
+  /* ── Motion ──────────────────────────────────────────────────────── */
+  --fac-ease:      cubic-bezier(0.16, 1, 0.3, 1);   /* out-expo */
+  --fac-fast:      140ms;
+  --fac-normal:    220ms;
+  --fac-slow:      260ms;
+
+  --fac-shadow-sm: 0 1px 2px rgba(13, 27, 42, .06);
+  --fac-shadow-md: 0 4px 14px -4px rgba(13, 27, 42, .16);
+  --fac-shadow-lg: 0 24px 60px -18px rgba(13, 27, 42, .38);
+}
+
+/* Money and references are numbers first. Lock tabular figures everywhere in
+   the register so columns line up digit-for-digit down 300 rows — the single
+   highest-value typographic decision on a screen like this.
+
+   This rule sets FIGURES ONLY, never colour. An earlier version also set
+   `color` here, and because `.fac-root button` (0,1,1) out-specifies
+   `.fac-btn--primary` (0,1,0) it repainted every solid button's label in ink on
+   its own navy fill — a 1.1:1 contrast, i.e. an invisible control. Colour is
+   inherited from .fac-root and overridden per component; it is not set here. */
+.fac-root,
+.fac-root input,
+.fac-root select,
+.fac-root button {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'cv05' 1;
+}
+.fac-root { color: var(--fac-ink); }
+
+.fac-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.fac-ref {
+  font-family: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+  font-size: var(--fac-text-xs);
+  letter-spacing: -0.02em;
+  white-space: nowrap;   /* FAC-2026-000001 is one token — never break it */
+}
+
+/* ── Page head ─────────────────────────────────────────────────────── */
+
+.fac-title {
+  font-family: 'Montserrat Variable', Montserrat, Inter, sans-serif;
+  font-size: var(--fac-text-2xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--fac-navy);
+  line-height: 1.15;
+}
+
+.fac-subtitle {
+  font-size: var(--fac-text-sm);
+  color: var(--fac-ink-muted);
+  max-width: 68ch;
+  line-height: 1.5;
+}
+
+.fac-eyebrow {
+  font-size: var(--fac-text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--fac-ink-dim);
+}
+
+/* ── Tiles ─────────────────────────────────────────────────────────────
+   The header row is a scoreboard of exceptions. The navy tile is the total
+   payable — the one number that answers "what do we owe" — and it is the only
+   inverted surface on the page so the eye lands there first. */
+
+.fac-tiles {
+  display: grid;
+  gap: var(--fac-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 768px)  { .fac-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .fac-tiles { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.fac-tiles-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 768px)  { .fac-tiles-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.fac-tiles-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 768px)  { .fac-tiles-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+.fac-tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--fac-3) var(--fac-3) var(--fac-3);
+  background: var(--fac-surface);
+  border: 1px solid var(--fac-line);
+  border-radius: var(--fac-radius);
+  box-shadow: var(--fac-shadow-sm);
+  overflow: hidden;
+  transition:
+    transform  var(--fac-fast) var(--fac-ease),
+    box-shadow var(--fac-normal) var(--fac-ease),
+    border-color var(--fac-normal) var(--fac-ease);
+}
+
+/* The 2px top rule is the tile's whole identity — it carries the state colour
+   and grows from the left on hover. Cheap, compositor-only, and it makes an
+   otherwise flat row of boxes feel deliberate. */
+.fac-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: currentColor;
+  opacity: .28;
+  transform: scaleX(1);
+  transform-origin: left;
+  transition: opacity var(--fac-normal) var(--fac-ease);
+}
+
+.fac-tile[data-clickable='true'] { cursor: pointer; }
+.fac-tile[data-clickable='true']:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--fac-shadow-md);
+  border-color: var(--fac-line-strong);
+}
+.fac-tile[data-clickable='true']:hover::after { opacity: 1; }
+.fac-tile[data-clickable='true']:focus-visible {
+  outline: 2px solid var(--fac-accent);
+  outline-offset: 2px;
+}
+
+.fac-tile-label {
+  font-size: var(--fac-text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 600;
+  color: var(--fac-ink-dim);
+  display: block;
+}
+
+.fac-tile-value {
+  font-size: var(--fac-text-xl);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  margin-top: 2px;
+  color: var(--fac-navy);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fac-tile--navy   { background: var(--fac-navy); border-color: var(--fac-navy); color: var(--fac-accent); }
+.fac-tile--navy .fac-tile-label { color: var(--fac-accent); }
+.fac-tile--navy .fac-tile-value { color: #ffffff; }
+
+.fac-tile--danger { color: var(--fac-danger); background: var(--fac-danger-wash); border-color: var(--fac-danger-line); }
+.fac-tile--danger .fac-tile-value { color: var(--fac-danger); }
+
+.fac-tile--warn   { color: var(--fac-accent); background: var(--fac-accent-wash); border-color: var(--fac-accent-line); }
+.fac-tile--warn .fac-tile-value { color: var(--fac-accent-ink); }
+
+.fac-tile--ok     { color: var(--fac-ok); background: var(--fac-ok-wash); border-color: var(--fac-ok-line); }
+.fac-tile--ok .fac-tile-value { color: var(--fac-ok); }
+
+.fac-tile--quiet  { color: var(--fac-ink-dim); }
+
+/* ── Panels ────────────────────────────────────────────────────────── */
+
+.fac-panel {
+  background: var(--fac-surface);
+  border: 1px solid var(--fac-line);
+  border-radius: var(--fac-radius-lg);
+  box-shadow: var(--fac-shadow-sm);
+  overflow: hidden;
+}
+
+.fac-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fac-3);
+  padding: var(--fac-3) var(--fac-4);
+  border-bottom: 1px solid var(--fac-line);
+  background: var(--fac-surface);
+}
+
+.fac-panel-title {
+  font-size: var(--fac-text-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--fac-ink-muted);
+}
+
+.fac-panel-body { padding: var(--fac-4); }
+
+/* ── Table ─────────────────────────────────────────────────────────────
+   28–32px rows, hairline separators, sticky head, right-aligned money. The
+   register is read by scanning down a money column, so nothing may interrupt
+   that column's rhythm. */
+
+.fac-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fac-text-sm);
+  /* Below this the columns start colliding, so the wrapper scrolls instead of
+     squeezing. A money column that reflows is worse than one you scroll to. */
+  min-width: 1120px;
+}
+
+.fac-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--fac-surface-alt);
+  color: var(--fac-navy);
+  font-size: var(--fac-text-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: left;
+  padding: var(--fac-2) 10px;
+  border-bottom: 1px solid var(--fac-line-strong);
+  white-space: nowrap;
+}
+.fac-table thead th.fac-num { text-align: right; }
+
+.fac-table tbody td {
+  padding: var(--fac-2) 10px;
+  border-bottom: 1px solid var(--fac-line);
+  vertical-align: top;
+  line-height: 1.4;
+}
+
+/* The status column is the row's verdict — it must never be the one that gets
+   clipped off the right edge. */
+.fac-table th:last-child,
+.fac-table td:last-child { padding-right: var(--fac-4); }
+
+.fac-table tbody tr { transition: background-color var(--fac-fast) var(--fac-ease); }
+.fac-table tbody tr:hover { background: var(--fac-surface-alt); }
+
+/* A cancelled or reversal row is history, not a live liability. It stays fully
+   legible — greying it out entirely would hide the reversal that makes the
+   payable reconcile — but it recedes. */
+.fac-table tbody tr[data-void='true'] td { color: var(--fac-ink-dim); }
+.fac-table tbody tr[data-void='true'] .fac-strong { font-weight: 500; }
+
+.fac-table tfoot td {
+  padding: var(--fac-3);
+  background: var(--fac-surface-alt);
+  border-top: 2px solid var(--fac-navy);
+  font-weight: 700;
+  color: var(--fac-navy);
+}
+
+.fac-strong { font-weight: 650; color: var(--fac-navy); }
+.fac-truncate { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+
+/* ── Flags and badges ──────────────────────────────────────────────────
+   These are the reason the register exists, so they sit on the row. Red is
+   "wrong today". Amber is "missing, fill it in". Nothing else gets a colour. */
+
+.fac-flags { display: flex; flex-wrap: wrap; gap: var(--fac-1); margin-top: var(--fac-1); }
+
+.fac-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  animation: fac-flag-in var(--fac-slow) var(--fac-ease) both;
+}
+.fac-flag::before { content: ''; width: 5px; height: 5px; border-radius: 999px; background: currentColor; flex: none; }
+
+.fac-flag--red   { color: var(--fac-danger); background: var(--fac-danger-wash); border-color: var(--fac-danger-line); }
+.fac-flag--amber { color: var(--fac-accent-ink); background: var(--fac-accent-wash); border-color: var(--fac-accent-line); }
+
+@keyframes fac-flag-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.fac-badge {
+  display: inline-block;
+  font-size: var(--fac-text-micro);
+  font-weight: 600;
+  padding: 2px var(--fac-2);
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.fac-badge--draft   { background: var(--fac-surface-sunk); color: var(--fac-ink-muted); }
+.fac-badge--placed  { background: var(--fac-info-wash);   color: var(--fac-info);       border-color: var(--fac-info-line); }
+.fac-badge--waiting { background: var(--fac-accent-wash); color: var(--fac-accent-ink); border-color: var(--fac-accent-line); }
+.fac-badge--paid    { background: var(--fac-ok-wash);     color: var(--fac-ok);         border-color: var(--fac-ok-line); }
+.fac-badge--ready   { background: var(--fac-ok);          color: #ffffff; }
+.fac-badge--closed  { background: var(--fac-surface-sunk); color: var(--fac-ink-dim); }
+.fac-badge--void    { background: var(--fac-danger-wash); color: var(--fac-danger);     border-color: var(--fac-danger-line); }
+
+/* ── Controls ──────────────────────────────────────────────────────── */
+
+.fac-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: var(--fac-text-sm);
+  font-weight: 550;
+  padding: 7px 14px;
+  border-radius: var(--fac-radius);
+  border: 1px solid var(--fac-line-strong);
+  background: var(--fac-surface);
+  color: var(--fac-ink);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    transform var(--fac-fast) var(--fac-ease),
+    background-color var(--fac-fast) var(--fac-ease),
+    border-color var(--fac-fast) var(--fac-ease),
+    box-shadow var(--fac-fast) var(--fac-ease);
+}
+.fac-btn:hover:not(:disabled) { background: var(--fac-surface-alt); border-color: var(--fac-ink-dim); }
+.fac-btn:active:not(:disabled) { transform: translateY(1px); }
+.fac-btn:focus-visible { outline: 2px solid var(--fac-accent); outline-offset: 2px; }
+.fac-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.fac-btn--primary {
+  background: var(--fac-navy);
+  border-color: var(--fac-navy);
+  color: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .10);
+}
+.fac-btn--primary:hover:not(:disabled) { background: var(--fac-navy-soft); border-color: var(--fac-navy-soft); }
+
+/* Orange is reserved for the action that discharges an exception. */
+.fac-btn--act {
+  background: var(--fac-accent);
+  border-color: var(--fac-accent);
+  color: var(--fac-navy);
+  font-weight: 650;
+}
+.fac-btn--act:hover:not(:disabled) { filter: brightness(1.06); }
+
+.fac-btn--go     { background: var(--fac-ok);     border-color: var(--fac-ok);     color: #fff; }
+.fac-btn--go:hover:not(:disabled) { filter: brightness(1.08); }
+.fac-btn--danger { background: var(--fac-surface); border-color: var(--fac-danger-line); color: var(--fac-danger); }
+.fac-btn--danger:hover:not(:disabled) { background: var(--fac-danger-wash); border-color: var(--fac-danger); }
+
+.fac-btn--sm { font-size: var(--fac-text-xs); padding: 5px 10px; }
+
+.fac-link {
+  color: var(--fac-info);
+  font-weight: 550;
+  text-decoration: none;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-size: 0% 1px;
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  transition: background-size var(--fac-normal) var(--fac-ease);
+}
+.fac-link:hover { background-size: 100% 1px; }
+
+.fac-input, .fac-select {
+  width: 100%;
+  font-size: var(--fac-text-sm);
+  padding: 7px var(--fac-3);
+  border: 1px solid var(--fac-line-strong);
+  border-radius: var(--fac-radius);
+  background: var(--fac-surface);
+  color: var(--fac-ink);
+  transition: border-color var(--fac-fast) var(--fac-ease), box-shadow var(--fac-fast) var(--fac-ease);
+}
+.fac-input:focus, .fac-select:focus {
+  outline: none;
+  border-color: var(--fac-navy);
+  box-shadow: 0 0 0 3px rgba(13, 27, 42, .10);
+}
+.fac-input::placeholder { color: var(--fac-ink-dim); }
+
+/* The control lives INSIDE its label, which gives it an accessible name with no
+   id plumbing and makes the label text a click target for free. */
+.fac-field { display: block; }
+
+.fac-label {
+  display: block;
+  font-size: var(--fac-text-micro);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fac-ink-muted);
+  margin-bottom: var(--fac-1);
+}
+.fac-hint {
+  display: block;
+  font-size: var(--fac-text-micro);
+  color: var(--fac-ink-dim);
+  margin-top: 3px;
+  line-height: 1.45;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
+
+/* A rejected field says so on itself. The red border is not the message —
+   colour alone fails anyone who cannot see it, so the reason is written out. */
+.fac-field[data-invalid="true"] .fac-input,
+.fac-field[data-invalid="true"] .fac-select {
+  border-color: var(--fac-danger);
+  background: var(--fac-danger-wash);
+}
+.fac-field[data-invalid="true"] .fac-input:focus,
+.fac-field[data-invalid="true"] .fac-select:focus {
+  border-color: var(--fac-danger);
+  box-shadow: 0 0 0 3px rgba(192, 57, 43, .12);
+}
+.fac-error {
+  display: block;
+  font-size: var(--fac-text-micro);
+  color: var(--fac-danger);
+  font-weight: 600;
+  margin-top: 3px;
+  line-height: 1.45;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* ── Tabs ──────────────────────────────────────────────────────────── */
+
+.fac-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--fac-line); }
+.fac-tab {
+  position: relative;
+  padding: var(--fac-2) var(--fac-4);
+  font-size: var(--fac-text-sm);
+  font-weight: 600;
+  color: var(--fac-ink-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color var(--fac-fast) var(--fac-ease);
+}
+.fac-tab::after {
+  content: '';
+  position: absolute;
+  left: var(--fac-3); right: var(--fac-3); bottom: -1px;
+  height: 2px;
+  background: var(--fac-accent);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform var(--fac-normal) var(--fac-ease);
+}
+.fac-tab:hover { color: var(--fac-navy); }
+.fac-tab[aria-selected='true'] { color: var(--fac-navy); }
+.fac-tab[aria-selected='true']::after { transform: scaleX(1); }
+.fac-tab:focus-visible { outline: 2px solid var(--fac-accent); outline-offset: -2px; border-radius: 4px; }
+
+/* ── Callouts ──────────────────────────────────────────────────────── */
+
+.fac-note {
+  font-size: var(--fac-text-xs);
+  line-height: 1.55;
+  padding: var(--fac-2) var(--fac-3);
+  border-radius: var(--fac-radius);
+  border: 1px solid var(--fac-line);
+  border-left-width: 3px;
+  background: var(--fac-surface-alt);
+  color: var(--fac-ink-muted);
+}
+.fac-note--warn   { background: var(--fac-accent-wash); border-color: var(--fac-accent-line); border-left-color: var(--fac-accent); color: var(--fac-accent-ink); }
+.fac-note--danger { background: var(--fac-danger-wash); border-color: var(--fac-danger-line); border-left-color: var(--fac-danger); color: #8c2b20; }
+.fac-note--ok     { background: var(--fac-ok-wash);     border-color: var(--fac-ok-line);     border-left-color: var(--fac-ok);     color: #185c3a; }
+
+/* ── Definition rows ───────────────────────────────────────────────── */
+
+.fac-dl { display: flex; flex-direction: column; }
+.fac-dt-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--fac-3);
+  padding: 5px 0;
+  font-size: var(--fac-text-sm);
+  border-bottom: 1px solid transparent;
+}
+.fac-dt-row + .fac-dt-row { border-top: 1px solid var(--fac-line); }
+.fac-dt { color: var(--fac-ink-muted); flex: none; }
+.fac-dd { text-align: right; color: var(--fac-ink); }
+.fac-dd--empty { color: var(--fac-ink-dim); }
+.fac-dd--strong { font-weight: 650; color: var(--fac-navy); }
+
+/* ── The capture split ─────────────────────────────────────────────── */
+
+/* Two deliberate choices, not a dropdown. The whole point is that the capturer
+   reads what each process means before committing to one, so each card carries
+   its own consequence — what comes next, and whether it counts as money owed. */
+.fac-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--fac-3);
+}
+.fac-choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fac-1);
+  padding: var(--fac-4);
+  text-align: left;
+  background: var(--fac-surface);
+  border: 1px solid var(--fac-line-strong);
+  border-radius: var(--fac-radius-lg);
+  cursor: pointer;
+  transition: border-color var(--fac-fast) var(--fac-ease),
+              box-shadow var(--fac-fast) var(--fac-ease),
+              transform var(--fac-fast) var(--fac-ease);
+}
+.fac-choice:hover,
+.fac-choice:focus-visible {
+  border-color: var(--fac-navy);
+  box-shadow: var(--fac-shadow-md);
+  transform: translateY(-1px);
+}
+.fac-choice-title {
+  font-size: var(--fac-text-base);
+  font-weight: 650;
+  color: var(--fac-navy);
+}
+.fac-choice-sub {
+  font-size: var(--fac-text-micro);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fac-ink-muted);
+}
+.fac-choice-body {
+  font-size: var(--fac-text-xs);
+  color: var(--fac-ink);
+  line-height: 1.5;
+  margin-top: var(--fac-1);
+}
+/* Orange means "a human has to do something here" — and this line is exactly
+   what the human has to do next. */
+.fac-choice-next {
+  font-size: var(--fac-text-xs);
+  color: var(--fac-accent-ink);
+  background: var(--fac-accent-wash);
+  border: 1px solid var(--fac-accent-line);
+  border-radius: var(--fac-radius);
+  padding: 5px var(--fac-2);
+  margin-top: var(--fac-2);
+}
+.fac-choice-flag {
+  font-size: var(--fac-text-micro);
+  color: var(--fac-ink-dim);
+  line-height: 1.45;
+  margin-top: var(--fac-1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fac-choice { transition: none; }
+  .fac-choice:hover, .fac-choice:focus-visible { transform: none; }
+}
+
+/* Every rejection, named, at the foot of the form. Marking the fields alone was
+   not enough: the dialog scrolls, and a rejection can land on a conditionally
+   hidden field or on a tick with no field box, leaving the capturer told that
+   something is wrong with nothing visibly wrong. */
+.fac-error-list {
+  margin: var(--fac-2) 0 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+.fac-error-list li {
+  font-size: var(--fac-text-xs);
+  line-height: 1.5;
+  margin-top: 2px;
+}
+.fac-error-list li strong { font-weight: 650; }
+
+/* ── What an amendment changed ─────────────────────────────────────── */
+
+/* One line per field: what it is, what it was, what it became. The old value
+   keeps full contrast and is struck through rather than dimmed — it is evidence,
+   not a footnote, and the strike says "superseded" to a reader who cannot rely
+   on colour. The rail on the left ties the block to the event above it. */
+.fac-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: var(--fac-2);
+  padding-left: var(--fac-2);
+  border-left: 2px solid var(--fac-line-strong);
+}
+.fac-change {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 var(--fac-2);
+  font-size: var(--fac-text-micro);
+  line-height: 1.5;
+}
+.fac-change-field {
+  min-width: 148px;
+  color: var(--fac-ink-muted);
+  font-weight: 600;
+}
+.fac-change-from {
+  color: var(--fac-ink-dim);
+  text-decoration: line-through;
+}
+.fac-change-arrow { color: var(--fac-ink-dim); flex: none; }
+.fac-change-to { color: var(--fac-navy); font-weight: 650; }
+
+/* ── Overlay and dialog ────────────────────────────────────────────── */
+
+.fac-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--fac-4);
+  background: rgba(13, 27, 42, .42);
+  backdrop-filter: blur(2px);
+  overflow-y: auto;
+  animation: fac-fade var(--fac-normal) var(--fac-ease) both;
+}
+
+.fac-dialog {
+  width: 100%;
+  background: var(--fac-surface);
+  border-radius: var(--fac-radius-lg);
+  box-shadow: var(--fac-shadow-lg);
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh;
+  overflow: hidden;
+  animation: fac-rise var(--fac-slow) var(--fac-ease) both;
+}
+
+.fac-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--fac-4);
+  border-bottom: 1px solid var(--fac-line);
+}
+.fac-dialog-title {
+  font-family: 'Montserrat Variable', Montserrat, Inter, sans-serif;
+  font-size: var(--fac-text-lg);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--fac-navy);
+}
+.fac-dialog-body { padding: var(--fac-4); overflow-y: auto; }
+.fac-dialog-foot {
+  display: flex;
+  gap: var(--fac-2);
+  padding: var(--fac-3) var(--fac-4);
+  border-top: 1px solid var(--fac-line);
+  background: var(--fac-surface-alt);
+}
+
+.fac-x {
+  border: none;
+  background: none;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--fac-ink-dim);
+  cursor: pointer;
+  padding: var(--fac-1);
+  border-radius: 4px;
+  transition: color var(--fac-fast) var(--fac-ease), background-color var(--fac-fast) var(--fac-ease);
+}
+.fac-x:hover { color: var(--fac-navy); background: var(--fac-surface-sunk); }
+.fac-x:focus-visible { outline: 2px solid var(--fac-accent); outline-offset: 1px; }
+
+@keyframes fac-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fac-rise {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ── Form section ──────────────────────────────────────────────────── */
+
+.fac-fieldset + .fac-fieldset { margin-top: var(--fac-4); }
+.fac-legend {
+  font-size: var(--fac-text-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fac-ink-dim);
+  padding-bottom: var(--fac-1);
+  border-bottom: 1px solid var(--fac-line);
+  margin-bottom: var(--fac-2);
+  display: block;
+  width: 100%;
+}
+.fac-grid-2 { display: grid; gap: var(--fac-3); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fac-grid-3 { display: grid; gap: var(--fac-3); grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fac-grid-4 { display: grid; gap: var(--fac-3); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 900px) { .fac-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+/* ── Loading veil ──────────────────────────────────────────────────── */
+
+.fac-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, .58);
+  animation: fac-fade var(--fac-fast) var(--fac-ease) both;
+}
+
+/* ── Reduced motion: keep every state, drop every movement. ────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .fac-root *,
+  .fac-overlay,
+  .fac-dialog,
+  .fac-flag {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .fac-tile[data-clickable='true']:hover { transform: none; }
+  .fac-tab::after { transition: none; }
+}
+
+/* ── Placement stage ──────────────────────────────────────────────── */
+
+/* Where a placement sits in the cycle. The dots carry the same information as
+   the label, which is the point: at 11px across 300 rows the eye reads the
+   filled-dot pattern long before it reads the words. Colour is never the only
+   signal — the label says it and the hint underneath counts it. */
+.fac-stage {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fac-2);
+  font-size: var(--fac-text-xs);
+  font-weight: 650;
+  white-space: nowrap;
+}
+.fac-stage--warn  { color: var(--fac-accent-ink); }
+.fac-stage--info  { color: var(--fac-ink); }
+.fac-stage--ok    { color: var(--fac-ok); }
+.fac-stage--quiet { color: var(--fac-ink-dim); text-decoration: line-through; }
+
+.fac-stage-dots { display: inline-flex; gap: 3px; flex: none; }
+.fac-stage-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fac-line-strong);
+}
+.fac-stage-dot.is-done { background: currentColor; }

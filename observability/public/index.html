@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Graphite Observability</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Inter',sans-serif; background:#0f172a; color:#e2e8f0; }
+    .header { background:#1e293b; padding:16px 24px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; }
+    .header h1 { font-size:20px; font-weight:600; }
+    .header .link { color:#60a5fa; text-decoration:none; font-size:13px; }
+    .container { max-width:1400px; margin:0 auto; padding:24px; }
+    .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:24px; }
+    .stat-card { background:#1e293b; border-radius:12px; padding:20px; border:1px solid #334155; }
+    .stat-card .label { font-size:12px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; }
+    .stat-card .value { font-size:28px; font-weight:700; margin-top:4px; }
+    .stat-card .value.green { color:#4ade80; }
+    .stat-card .value.red { color:#f87171; }
+    .stat-card .value.blue { color:#60a5fa; }
+    .stat-card .value.yellow { color:#fbbf24; }
+    .card { background:#1e293b; border-radius:12px; padding:20px; border:1px solid #334155; margin-bottom:24px; }
+    .card h2 { font-size:16px; font-weight:600; margin-bottom:16px; }
+    .tabs { display:flex; gap:8px; margin-bottom:24px; }
+    .tab { padding:8px 16px; border-radius:8px; cursor:pointer; font-size:13px; background:#334155; border:none; color:#e2e8f0; }
+    .tab.active { background:#3b82f6; color:#fff; }
+    .search-bar { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+    .search-bar input, .search-bar select { padding:8px 12px; border-radius:8px; border:1px solid #334155; background:#0f172a; color:#e2e8f0; font-size:13px; }
+    .search-bar input { flex:1; min-width:200px; }
+    .search-bar button { padding:8px 16px; border-radius:8px; border:none; background:#3b82f6; color:#fff; cursor:pointer; font-size:13px; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th { text-align:left; padding:10px 12px; color:#94a3b8; border-bottom:1px solid #334155; font-weight:500; }
+    td { padding:10px 12px; border-bottom:1px solid #1e293b; }
+    tr:hover { background:#1e293b; }
+    .badge { padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; }
+    .badge.green { background:#166534; color:#4ade80; }
+    .badge.red { background:#7f1d1d; color:#f87171; }
+    .badge.yellow { background:#713f12; color:#fbbf24; }
+    .badge.blue { background:#1e3a5f; color:#60a5fa; }
+    .pagination { display:flex; justify-content:center; gap:8px; margin-top:16px; }
+    .pagination button { padding:6px 12px; border-radius:6px; border:1px solid #334155; background:#1e293b; color:#e2e8f0; cursor:pointer; }
+    .pagination button.active { background:#3b82f6; border-color:#3b82f6; }
+    .alert-item { padding:12px; border-radius:8px; margin-bottom:8px; display:flex; align-items:center; gap:12px; }
+    .alert-item.critical { background:#7f1d1d; border:1px solid #dc2626; }
+    .alert-item.warning { background:#713f12; border:1px solid #f59e0b; }
+    .chart-container { height:300px; }
+    .loading { text-align:center; padding:40px; color:#94a3b8; }
+    @media(max-width:768px) { .stats-grid { grid-template-columns:1fr 1fr; } .search-bar { flex-direction:column; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Graphite Observability</h1>
+    <a class="link" href="http://graphite-v2-fe.alphadirect.co.bw" target="_blank">Back to Graphite</a>
+  </div>
+
+  <div class="container">
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('dashboard')">Dashboard</button>
+      <button class="tab" onclick="showTab('search')">Search</button>
+      <button class="tab" onclick="showTab('outgoing')">Outgoing</button>
+      <button class="tab" onclick="showTab('alerts')">Alerts</button>
+      <button class="tab" onclick="showTab('archive')">Archive</button>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="tab-dashboard">
+      <div class="stats-grid" id="stats-grid"><div class="loading">Loading stats...</div></div>
+      <div class="card">
+        <h2>Request Volume (24h)</h2>
+        <div class="chart-container"><canvas id="volumeChart"></canvas></div>
+      </div>
+      <div class="card">
+        <h2>Top Endpoints (24h)</h2>
+        <table id="top-endpoints"><thead><tr><th>Endpoint</th><th>Requests</th><th>Avg Duration</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="card">
+        <h2>Slow Requests (&gt;5s)</h2>
+        <table id="slow-requests"><thead><tr><th>Time</th><th>Method</th><th>URL</th><th>Duration</th><th>Status</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div id="tab-search" style="display:none">
+      <div class="card">
+        <h2>Search Incoming Requests</h2>
+        <div class="search-bar">
+          <select id="s-method"><option value="">All Methods</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option><option>GET</option></select>
+          <input id="s-url" placeholder="URL pattern (e.g. /policies)">
+          <input id="s-ip" placeholder="IP address">
+          <input id="s-from" type="date">
+          <input id="s-to" type="date">
+          <button onclick="searchRequests()">Search</button>
+          <button onclick="exportCSV()" style="background:#059669">Export CSV</button>
+        </div>
+        <table id="search-results"><thead><tr><th>Time</th><th>Method</th><th>URL</th><th>Status</th><th>Duration</th><th>IP</th><th>User</th></tr></thead><tbody></tbody></table>
+        <div class="pagination" id="search-pagination"></div>
+      </div>
+    </div>
+
+    <!-- Outgoing -->
+    <div id="tab-outgoing" style="display:none">
+      <div class="card">
+        <h2>Outgoing Requests (DPO, Realpay, Infobip, etc.)</h2>
+        <div class="search-bar">
+          <input id="o-url" placeholder="URL or host (e.g. realpay)">
+          <input id="o-from" type="date">
+          <input id="o-to" type="date">
+          <button onclick="searchOutgoing()">Search</button>
+        </div>
+        <table id="outgoing-results"><thead><tr><th>Time</th><th>Method</th><th>URL</th><th>Status</th><th>Duration</th><th>Host</th></tr></thead><tbody></tbody></table>
+        <div class="pagination" id="outgoing-pagination"></div>
+      </div>
+    </div>
+
+    <!-- Alerts -->
+    <div id="tab-alerts" style="display:none">
+      <div class="card">
+        <h2>Active Alerts</h2>
+        <div id="alerts-list"><div class="loading">Checking alerts...</div></div>
+      </div>
+    </div>
+
+    <!-- Archive -->
+    <div id="tab-archive" style="display:none">
+      <div class="card">
+        <h2>Archived Requests (migrated from MySQL)</h2>
+        <div class="search-bar">
+          <input id="a-url" placeholder="URL pattern">
+          <input id="a-from" type="date">
+          <input id="a-to" type="date">
+          <button onclick="searchArchive()">Search</button>
+        </div>
+        <table id="archive-results"><thead><tr><th>Time</th><th>Method</th><th>URL</th><th>Duration</th><th>IP</th></tr></thead><tbody></tbody></table>
+        <div class="pagination" id="archive-pagination"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = '';
+    let volumeChart;
+
+    function showTab(name) {
+      document.querySelectorAll('[id^=tab-]').forEach(t => t.style.display = 'none');
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-' + name).style.display = 'block';
+      event.target.classList.add('active');
+      if (name === 'alerts') loadAlerts();
+    }
+
+    function badge(status) {
+      if (status >= 500) return `<span class="badge red">${status}</span>`;
+      if (status >= 400) return `<span class="badge yellow">${status}</span>`;
+      if (status >= 200) return `<span class="badge green">${status}</span>`;
+      return `<span class="badge blue">${status}</span>`;
+    }
+
+    function fmt(ts) {
+      if (!ts) return '-';
+      const d = new Date(ts);
+      return d.toLocaleString();
+    }
+
+    async function loadDashboard() {
+      try {
+        const [stats, ts] = await Promise.all([
+          fetch(API + '/api/stats').then(r => r.json()),
+          fetch(API + '/api/timeseries?hours=24&interval=hour').then(r => r.json()),
+        ]);
+
+        document.getElementById('stats-grid').innerHTML = `
+          <div class="stat-card"><div class="label">Total Incoming</div><div class="value blue">${stats.total.incoming.toLocaleString()}</div></div>
+          <div class="stat-card"><div class="label">Total Outgoing</div><div class="value blue">${stats.total.outgoing.toLocaleString()}</div></div>
+          <div class="stat-card"><div class="label">Last Hour</div><div class="value green">${stats.last_hour.toLocaleString()}</div></div>
+          <div class="stat-card"><div class="label">Last 24h</div><div class="value green">${stats.last_24h.toLocaleString()}</div></div>
+          <div class="stat-card"><div class="label">Avg Response</div><div class="value yellow">${stats.avg_duration_ms}ms</div></div>
+          <div class="stat-card"><div class="label">P95 Response</div><div class="value yellow">${stats.p95_duration_ms}ms</div></div>
+          <div class="stat-card"><div class="label">Errors (24h)</div><div class="value red">${stats.errors_24h}</div></div>
+          <div class="stat-card"><div class="label">Error Rate</div><div class="value red">${stats.error_rate}</div></div>
+        `;
+
+        const tbody = document.querySelector('#top-endpoints tbody');
+        tbody.innerHTML = stats.top_endpoints.map(e => `<tr><td>${e._id}</td><td>${e.count}</td><td>${Math.round(e.avgMs)}ms</td></tr>`).join('');
+
+        const stbody = document.querySelector('#slow-requests tbody');
+        stbody.innerHTML = stats.slow_requests.map(r => `<tr><td>${fmt(r.time)}</td><td>${r.method}</td><td>${r.url}</td><td>${r.duration_ms}ms</td><td>${badge(r.status)}</td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:#94a3b8">No slow requests in last 24h</td></tr>';
+
+        if (volumeChart) volumeChart.destroy();
+        const ctx = document.getElementById('volumeChart').getContext('2d');
+        volumeChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: ts.map(t => new Date(t.time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})),
+            datasets: [
+              { label: 'Requests', data: ts.map(t => t.requests), borderColor: '#3b82f6', tension: 0.3, fill: false },
+              { label: 'Errors', data: ts.map(t => t.errors), borderColor: '#f87171', tension: 0.3, fill: false },
+            ]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#94a3b8' } } },
+            scales: {
+              x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
+              y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
+            }
+          }
+        });
+      } catch (e) {
+        document.getElementById('stats-grid').innerHTML = '<div class="loading">Failed to load dashboard. MongoDB may not be connected yet.</div>';
+      }
+    }
+
+    let searchPage = 1;
+    async function searchRequests(page = 1) {
+      searchPage = page;
+      const params = new URLSearchParams({ page, limit: 50, direction: 'incoming' });
+      const method = document.getElementById('s-method').value;
+      const url = document.getElementById('s-url').value;
+      const ip = document.getElementById('s-ip').value;
+      const from = document.getElementById('s-from').value;
+      const to = document.getElementById('s-to').value;
+      if (method) params.set('method', method);
+      if (url) params.set('url', url);
+      if (ip) params.set('ip', ip);
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+
+      const res = await fetch(API + '/api/requests?' + params).then(r => r.json());
+      const tbody = document.querySelector('#search-results tbody');
+      tbody.innerHTML = res.data.map(r => `<tr><td>${fmt(r.timestamp)}</td><td>${r.method}</td><td>${r.url}</td><td>${badge(r.status_code)}</td><td>${r.duration_ms}ms</td><td>${r.ip_address||'-'}</td><td>${r.user_email||r.user_id||'-'}</td></tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:#94a3b8">No results</td></tr>';
+
+      const pg = res.pagination;
+      document.getElementById('search-pagination').innerHTML = Array.from({length: Math.min(pg.pages, 10)}, (_, i) => `<button class="${i+1===pg.page?'active':''}" onclick="searchRequests(${i+1})">${i+1}</button>`).join('') + (pg.pages > 10 ? `<button>... ${pg.total} total</button>` : '');
+    }
+
+    async function searchOutgoing(page = 1) {
+      const params = new URLSearchParams({ page, limit: 50, direction: 'outgoing' });
+      const url = document.getElementById('o-url').value;
+      const from = document.getElementById('o-from').value;
+      const to = document.getElementById('o-to').value;
+      if (url) params.set('url', url);
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+
+      const res = await fetch(API + '/api/requests?' + params).then(r => r.json());
+      const tbody = document.querySelector('#outgoing-results tbody');
+      tbody.innerHTML = res.data.map(r => `<tr><td>${fmt(r.timestamp)}</td><td>${r.method}</td><td>${r.url}</td><td>${badge(r.status_code)}</td><td>${r.duration_ms}ms</td><td>${r.host||'-'}</td></tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:#94a3b8">No outgoing requests yet</td></tr>';
+    }
+
+    async function searchArchive(page = 1) {
+      const params = new URLSearchParams({ page, limit: 50 });
+      const url = document.getElementById('a-url').value;
+      const from = document.getElementById('a-from').value;
+      const to = document.getElementById('a-to').value;
+      if (url) params.set('url', url);
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+
+      const res = await fetch(API + '/api/archive?' + params).then(r => r.json());
+      const tbody = document.querySelector('#archive-results tbody');
+      tbody.innerHTML = res.data.map(r => `<tr><td>${fmt(r.timestamp||r.created_at)}</td><td>${r.method||'-'}</td><td>${r.url||'-'}</td><td>${r.duration||'-'}</td><td>${r.ip_address||'-'}</td></tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:#94a3b8">No archived data. Run migration to populate.</td></tr>';
+    }
+
+    async function loadAlerts() {
+      const res = await fetch(API + '/api/alerts').then(r => r.json());
+      const el = document.getElementById('alerts-list');
+      if (res.alerts.length === 0) {
+        el.innerHTML = '<div style="text-align:center;padding:40px;color:#4ade80">All clear - no active alerts</div>';
+      } else {
+        el.innerHTML = res.alerts.map(a => `<div class="alert-item ${a.type}"><strong>${a.type.toUpperCase()}</strong> ${a.message}</div>`).join('');
+      }
+    }
+
+    function exportCSV() {
+      const params = new URLSearchParams({ direction: 'incoming', limit: 5000 });
+      const method = document.getElementById('s-method').value;
+      const url = document.getElementById('s-url').value;
+      const from = document.getElementById('s-from').value;
+      const to = document.getElementById('s-to').value;
+      if (method) params.set('method', method);
+      if (url) params.set('url', url);
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      window.location.href = API + '/api/export?' + params;
+    }
+
+    // Auto-refresh dashboard every 30s
+    loadDashboard();
+    setInterval(loadDashboard, 30000);
+  </script>
+</body>
+</html>

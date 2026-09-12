@@ -1,0 +1,213 @@
+name: prod-migrate
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "What to run"
+        required: true
+        default: migrate-status
+        type: choice
+        options:
+          - migrate-status    # safe: lists pending migrations, no writes
+          - migrate-pretend   # safe: prints SQL that would run, no writes
+          - migrate           # WRITES: runs pending migrations on prod DB
+      confirm:
+        description: 'Type "yes" to allow "migrate" to run (ignored for status/pretend)'
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  run-artisan:
+    name: ${{ inputs.mode }} on prod
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      AWS_REGION:    af-south-1
+      CLUSTER:       graphite-cluster
+      # PROD task family. Pre-2026-06-15 this said 'graphite-backend' which
+      # is the STAGING task family, so every "prod-migrate" run was actually
+      # hitting staging's env vars → staging DB. That misled us into thinking
+      # PROD was clean when in fact it had ~100 unapplied migrations + a
+      # missing sms_infobip_log.error column. Container name inside the
+      # PROD task def is still 'graphite-backend' (the container kept the
+      # legacy name), so only TASK_FAMILY needs to change.
+      TASK_FAMILY:   graphite-prod-backend
+      CONTAINER:     graphite-backend
+      LOG_GROUP:     /ecs/graphite-backend
+      SUBNETS:       subnet-3cd4f576,subnet-5fd13536,subnet-31505649
+      SECURITY_GROUP: sg-041c22f65331e0566
+
+    steps:
+      - name: Guard destructive mode
+        if: inputs.mode == 'migrate'
+        run: |
+          if [ "${{ inputs.confirm }}" != "yes" ]; then
+            echo "::error::mode=migrate requires confirm=yes. Re-run and type 'yes' in the confirm field."
+            exit 1
+          fi
+
+      - name: Resolve artisan command
+        id: cmd
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          case "$MODE" in
+            migrate-status)  ARTISAN='migrate:status' ;;
+            migrate-pretend) ARTISAN='migrate --pretend' ;;
+            migrate)         ARTISAN='migrate --force --no-interaction' ;;
+            *) echo "::error::unknown mode '$MODE'"; exit 1 ;;
+          esac
+          echo "Resolved artisan command: php artisan $ARTISAN"
+          # Multi-line heredoc form preserves colons/special chars across the GH output boundary
+          {
+            echo 'artisan<<EOF'
+            echo "$ARTISAN"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve current task definition ARN
+        id: td
+        run: |
+          TD_ARN=$(aws ecs describe-task-definition \
+            --task-definition "$TASK_FAMILY" \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "arn=$TD_ARN" >> "$GITHUB_OUTPUT"
+          echo "Using: $TD_ARN"
+
+      - name: Launch one-off ECS task (backend only)
+        id: run
+        run: |
+          CMD='cd /var/www/html && php artisan ${{ steps.cmd.outputs.artisan }}'
+          echo "Target service : graphite-backend (one-off task, not touching running service)"
+          echo "Task definition: ${{ steps.td.outputs.arn }}"
+          echo "Container      : $CONTAINER"
+          echo "Command        : $CMD"
+
+          OVERRIDES=$(jq -cn --arg name "$CONTAINER" --arg cmd "$CMD" '
+            {containerOverrides: [{name: $name, command: ["sh","-c",$cmd]}]}')
+
+          NETCFG=$(jq -cn --arg subnets "$SUBNETS" --arg sg "$SECURITY_GROUP" '
+            {awsvpcConfiguration:{
+              subnets: ($subnets | split(",")),
+              securityGroups: [$sg],
+              assignPublicIp: "ENABLED"}}')
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "${{ steps.td.outputs.arn }}" \
+            --launch-type FARGATE --platform-version LATEST \
+            --network-configuration "$NETCFG" \
+            --overrides "$OVERRIDES" \
+            --started-by "gha-${{ github.run_id }}" \
+            --query 'tasks[0].taskArn' --output text)
+
+          if [ -z "$TASK_ARN" ] || [ "$TASK_ARN" = "None" ]; then
+            echo "::error::run-task did not return a taskArn"
+            exit 1
+          fi
+          TASK_ID=$(basename "$TASK_ARN")
+          echo "task_arn=$TASK_ARN" >> "$GITHUB_OUTPUT"
+          echo "task_id=$TASK_ID"   >> "$GITHUB_OUTPUT"
+          echo "Launched task: $TASK_ID"
+
+      - name: Wait for task to stop
+        run: |
+          aws ecs wait tasks-stopped \
+            --cluster "$CLUSTER" \
+            --tasks "${{ steps.run.outputs.task_arn }}"
+
+      - name: Describe task (always, even on failure)
+        id: describe
+        if: always() && steps.run.outputs.task_arn != ''
+        run: |
+          echo "── Full task description ──"
+          aws ecs describe-tasks \
+            --cluster "$CLUSTER" \
+            --tasks "${{ steps.run.outputs.task_arn }}" \
+            --query 'tasks[0].{
+              lastStatus: lastStatus,
+              stopCode: stopCode,
+              stoppedReason: stoppedReason,
+              connectivity: connectivity,
+              container: containers[0].{
+                name: name,
+                lastStatus: lastStatus,
+                exitCode: exitCode,
+                reason: reason,
+                image: image
+              }
+            }' --output yaml
+
+      - name: Fetch task logs (best effort)
+        if: always() && steps.run.outputs.task_arn != ''
+        run: |
+          TASK_ID="${{ steps.run.outputs.task_id }}"
+          STREAM="ecs/$CONTAINER/$TASK_ID"
+          echo "── CloudWatch ($LOG_GROUP / $STREAM) ──"
+
+          # Wait briefly for log shipping (awslogs driver has a small lag)
+          for i in 1 2 3 4 5; do
+            if aws logs describe-log-streams \
+                --log-group-name "$LOG_GROUP" \
+                --log-stream-name-prefix "$STREAM" \
+                --query 'logStreams[0].logStreamName' --output text 2>/dev/null | grep -q "$TASK_ID"; then
+              break
+            fi
+            echo "(waiting for log stream, attempt $i/5)"
+            sleep 3
+          done
+
+          if aws logs get-log-events \
+              --log-group-name "$LOG_GROUP" \
+              --log-stream-name "$STREAM" \
+              --start-from-head \
+              --query 'events[*].[timestamp,message]' --output text 2>/dev/null; then
+            :
+          else
+            echo "(no log events — container likely failed before starting. See stopCode/stoppedReason above.)"
+          fi
+
+      - name: Check exit code and build summary
+        if: always() && steps.run.outputs.task_arn != ''
+        run: |
+          DESC=$(aws ecs describe-tasks \
+            --cluster "$CLUSTER" \
+            --tasks "${{ steps.run.outputs.task_arn }}" \
+            --output json)
+
+          CODE=$(echo "$DESC" | jq -r '.tasks[0].containers[0].exitCode // "null"')
+          STOP_REASON=$(echo "$DESC"    | jq -r '.tasks[0].stoppedReason // ""')
+          STOP_CODE=$(echo "$DESC"      | jq -r '.tasks[0].stopCode // ""')
+          C_REASON=$(echo "$DESC"       | jq -r '.tasks[0].containers[0].reason // ""')
+          C_STATUS=$(echo "$DESC"       | jq -r '.tasks[0].containers[0].lastStatus // ""')
+
+          {
+            echo "## prod-migrate — \`${{ inputs.mode }}\`"
+            echo
+            echo "- **Task:**           \`${{ steps.run.outputs.task_id }}\`"
+            echo "- **Container status:** \`$C_STATUS\`"
+            echo "- **Exit code:**      \`$CODE\`"
+            [ -n "$STOP_CODE" ]   && echo "- **Stop code:**      \`$STOP_CODE\`"
+            [ -n "$STOP_REASON" ] && echo "- **Stop reason:**    $STOP_REASON"
+            [ -n "$C_REASON" ]    && echo "- **Container reason:** $C_REASON"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$CODE" = "null" ]; then
+            echo "::error::Container never produced an exit code (status=$C_STATUS). Likely pre-container failure — see 'Describe task' output above for stoppedReason / container.reason."
+            exit 1
+          fi
+          if [ "$CODE" != "0" ]; then
+            echo "::error::artisan exited with code $CODE (see 'Fetch task logs' step for the actual error)"
+            exit 1
+          fi

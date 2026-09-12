@@ -1,0 +1,15 @@
+{
+  "name": "graphite-observability",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.0",
+    "mongodb": "^6.3.0",
+    "cors": "^2.8.5",
+    "compression": "^1.7.4"
+  }
+}

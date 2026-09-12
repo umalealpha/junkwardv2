@@ -1,0 +1,278 @@
+{
+  "_note": "Synthetic, PII-FREE test data. All references are fake (TEST-*). Used for weekend testing so the brain runs with no live data and sends nothing. Collections entries are clock inputs (2-consecutive-months rule, start 2026-07-01); expected EMPTY before Sep 2026.",
+  "collections": [
+    {
+      "policyNumber": "TEST-COL-001",
+      "customerName": "SYNTHETIC ONE",
+      "productId": 4,
+      "product": "Legal Insurance",
+      "agent": null,
+      "billingType": "MIS",
+      "policyStatus": "active",
+      "channel": "RealPay",
+      "months": [
+        {
+          "period": "2026-07",
+          "due": "2026-07-01",
+          "amount": 250,
+          "paid": false
+        },
+        {
+          "period": "2026-08",
+          "due": "2026-08-01",
+          "amount": 250,
+          "paid": false
+        }
+      ],
+      "successEvents": [],
+      "_expect": "deactivate_candidate once August has ended (from 1 Sep)"
+    },
+    {
+      "policyNumber": "TEST-COL-002",
+      "customerName": "SYNTHETIC TWO",
+      "productId": 8,
+      "product": "Domestic",
+      "agent": "Broker A",
+      "billingType": "DOM",
+      "policyStatus": "deactivated",
+      "channel": "ledger",
+      "months": [
+        {
+          "period": "2026-07",
+          "due": "2026-07-01",
+          "amount": 800,
+          "paid": false
+        },
+        {
+          "period": "2026-08",
+          "due": "2026-08-01",
+          "amount": 800,
+          "paid": false
+        }
+      ],
+      "successEvents": [],
+      "_expect": "grace after 31 Aug, cancel_candidate from 15 Sep"
+    },
+    {
+      "policyNumber": "TEST-COL-003",
+      "customerName": "SYNTHETIC LEGACY",
+      "productId": 2,
+      "product": "Third Party",
+      "agent": null,
+      "billingType": "MIS",
+      "policyStatus": "active",
+      "channel": "VCS",
+      "months": [
+        {
+          "period": "2026-01",
+          "due": "2026-01-01",
+          "amount": 250,
+          "paid": false
+        },
+        {
+          "period": "2026-02",
+          "due": "2026-02-01",
+          "amount": 250,
+          "paid": false
+        },
+        {
+          "period": "2026-03",
+          "due": "2026-03-01",
+          "amount": 250,
+          "paid": false
+        }
+      ],
+      "successEvents": [],
+      "_expect": "NEVER listed - pre-July legacy arrears are invisible (CFO rule start)"
+    }
+  ],
+  "kyc": [
+    {
+      "ref": "TEST-KYC-COM",
+      "product": "commercial",
+      "remindersSent": 3,
+      "firstRequestedDaysAgo": 20,
+      "docs": [
+        {
+          "type": "certificate_of_incorporation",
+          "present": true,
+          "ocr": {
+            "detectedType": "certificate_of_incorporation",
+            "confidence": 0.9
+          }
+        },
+        {
+          "type": "directors_ids",
+          "present": true,
+          "ocr": {
+            "detectedType": "directors_ids",
+            "confidence": 0.8
+          }
+        }
+      ]
+    },
+    {
+      "ref": "TEST-KYC-DOM",
+      "product": "domestic",
+      "remindersSent": 0,
+      "firstRequestedDaysAgo": 2,
+      "docs": [
+        {
+          "type": "id",
+          "present": true,
+          "ocr": {
+            "detectedType": "id",
+            "confidence": 0.95
+          }
+        },
+        {
+          "type": "proof_of_address",
+          "present": true,
+          "ocr": {
+            "detectedType": "proof_of_address",
+            "confidence": 0.9
+          }
+        },
+        {
+          "type": "proof_of_income",
+          "present": true,
+          "ocr": {
+            "detectedType": "proof_of_income",
+            "confidence": 0.88
+          }
+        },
+        {
+          "type": "source_of_funds",
+          "present": true,
+          "ocr": {
+            "detectedType": "source_of_funds",
+            "confidence": 0.85
+          }
+        },
+        {
+          "type": "next_of_kin",
+          "present": true,
+          "ocr": {
+            "detectedType": "next_of_kin",
+            "confidence": 0.9
+          }
+        }
+      ]
+    },
+    {
+      "ref": "TEST-KYC-REV",
+      "product": "motor_comprehensive",
+      "remindersSent": 0,
+      "firstRequestedDaysAgo": 1,
+      "docs": [
+        {
+          "type": "id",
+          "present": true,
+          "ocr": {
+            "detectedType": "id",
+            "confidence": 0.4
+          }
+        },
+        {
+          "type": "drivers_licence",
+          "present": true,
+          "ocr": {
+            "detectedType": "drivers_licence",
+            "confidence": 0.9
+          }
+        },
+        {
+          "type": "proof_of_address",
+          "present": true,
+          "ocr": {
+            "detectedType": "proof_of_address",
+            "confidence": 0.9
+          }
+        }
+      ]
+    }
+  ],
+  "debtors": [
+    {
+      "account": "TEST-DR-001",
+      "asOf": "2026-04-01",
+      "invoices": [
+        {
+          "date": "2026-01-01",
+          "amount": 1000,
+          "ref": "INV-1"
+        }
+      ],
+      "payments": [
+        {
+          "date": "2026-03-30",
+          "amount": 1000,
+          "ref": "INV-1"
+        }
+      ]
+    },
+    {
+      "account": "TEST-DR-002",
+      "asOf": "2026-04-01",
+      "invoices": [
+        {
+          "date": "2025-11-15",
+          "amount": 1500,
+          "ref": "INV-9"
+        }
+      ],
+      "payments": []
+    }
+  ],
+  "claims": [
+    {
+      "claimNumber": "TEST-CLM-FR",
+      "coverStart": "2026-03-01",
+      "dateOfLoss": "2026-02-20",
+      "dateReported": "2026-03-05",
+      "claimType": "motor",
+      "sumInsured": 50000,
+      "estimate": 40000
+    },
+    {
+      "claimNumber": "TEST-CLM-HA",
+      "arrearsMonths": 5,
+      "financeApproved": true
+    },
+    {
+      "claimNumber": "TEST-CLM-OK",
+      "coverStart": "2025-01-01",
+      "dateOfLoss": "2026-02-20",
+      "dateReported": "2026-02-21",
+      "claimType": "motor",
+      "sumInsured": 50000,
+      "estimate": 10000
+    }
+  ],
+  "events": [
+    {
+      "event": "total_loss",
+      "ctx": {
+        "claimNumber": "TEST-CLM-TL",
+        "policyNumber": "TEST-POL-TL",
+        "amount": 120000,
+        "flags": {
+          "largeLoss": true
+        }
+      }
+    },
+    {
+      "event": "refund_due",
+      "ctx": {
+        "policyNumber": "TEST-POL-RF",
+        "amount": 600
+      }
+    },
+    {
+      "event": "renewal_due",
+      "ctx": {
+        "policyNumber": "TEST-POL-RN"
+      }
+    }
+  ]
+}

@@ -1,0 +1,239 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hidden-but-scrollable — for the sidebar nav and other internal scroll
+   areas where a visible scrollbar looks cheap. Content still scrolls. */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+/* Number inputs without spinner arrows — money fields (e.g. the reserve/
+   payment allocation input) use type="number" for decimal validation, but the
+   up/down spinner arrows get clicked by accident, silently turning 850.00 into
+   849.99. This strips the arrows in all browsers; the field stays numeric.
+   Pair with `onWheel={e => e.currentTarget.blur()}` on the element to also stop
+   mouse-wheel scroll from changing the value. */
+.no-spinner { -moz-appearance: textfield; appearance: textfield; }
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* Hide chrome/action controls when printing a claims report (1:1 with the
+   legacy Claims Tracker, which strips nav/buttons from the printed page). */
+@media print { .no-print { display: none !important; } }
+
+/* Slim branded scrollbar for the sidebar nav (matches the Reporting portal):
+   a translucent white pill on a transparent track that brightens to brand
+   orange on hover; scrollbar-gutter:stable reserves the track so content
+   never jumps when it appears. */
+.nav-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.22) transparent; scrollbar-gutter: stable; }
+.nav-scroll::-webkit-scrollbar { width: 8px; }
+.nav-scroll::-webkit-scrollbar-track { background: transparent; }
+.nav-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(255,255,255,.20);
+  border-radius: 9999px;
+  border: 2px solid transparent;   /* inset → slim ~4px pill */
+  background-clip: content-box;
+  transition: background-color .2s ease;
+}
+.nav-scroll:hover { scrollbar-color: rgba(255,102,0,.55) transparent; }
+.nav-scroll:hover::-webkit-scrollbar-thumb { background-color: rgba(255,102,0,.55); }
+.nav-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(255,102,0,.85); }
+
+/* Sidebar nav hover FX — a restrained "HUD" feel: a glowing orange edge-bar
+   grows in on the left, and a faint light-sweep shimmers across the item.
+   Tuned subtle for all-day use; honours prefers-reduced-motion. */
+.nav-fx { position: relative; overflow: hidden; }
+.nav-fx::before {
+  content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 2px; height: 0; border-radius: 2px;
+  background: linear-gradient(180deg, #FF6600, #FF8533);
+  box-shadow: 0 0 8px rgba(255,102,0,.75);
+  transition: height .2s ease;
+}
+.nav-fx:hover::before { height: 62%; }
+.nav-fx::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255,102,0,.12), transparent);
+  transform: translateX(-100%); transition: transform .5s ease;
+}
+.nav-fx:hover::after { transform: translateX(100%); }
+@media (prefers-reduced-motion: reduce) {
+  .nav-fx::before { transition: none; }
+  .nav-fx::after { display: none; }
+}
+
+/* Page transition — a subtle fade when route content appears, keyed per route
+   in AdminLayout so it replays on each navigation.
+   IMPORTANT: opacity ONLY — no transform. The page-enter wrapper is the ancestor
+   of every in-page modal/overlay; animating transform here (even ending at
+   `transform: none` with fill-mode:both) makes it a containing block for
+   position:fixed descendants in some engines, so every modal anchored to the
+   tall page box instead of the viewport and rendered off-screen on long pages.
+   Opacity can't establish a containing block, so all 50+ fixed modals stay
+   viewport-centred. Disabled under prefers-reduced-motion. */
+@keyframes pageEnter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.page-enter { animation: pageEnter .28s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .page-enter { animation: none; }
+}
+
+/* ── Global density dial ───────────────────────────────────────────
+   A slightly smaller root font-size gives the portal a compact,
+   desktop-application feel rather than an airy website. Every rem-based
+   Tailwind size (text AND spacing) scales from this one value, so the
+   whole UI tightens consistently. Tune here: 15px = a little low,
+   14px = denser. (Default browser root is 16px.) */
+html { font-size: 15px; }
+
+/* ============================================================
+   Design tokens — single source of truth for theme + dark mode.
+   Values are space-separated RGB triplets so Tailwind's
+   `rgb(var(--x) / <alpha-value>)` colors (see tailwind.config.js)
+   support opacity utilities (e.g. bg-surface/80).
+   Light = :root (today's look). Dark = .dark on <html>.
+   ============================================================ */
+:root {
+  --app:         245 246 251;
+  --surface:     255 255 255;
+  --surface-2:   238 240 248;
+  --border:      228 230 242;
+  --text:        32 32 32;
+  --text-muted:  102 102 102;
+  --text-faint:  153 153 153;
+
+  /* semantic status (contrast-checked ≥4.5:1 on their bg) */
+  --success-bg: 223 246 239; --success-fg: 6 122 91;
+  --warning-bg: 255 243 204; --warning-fg: 138 106 0;
+  --danger-bg:  252 228 228; --danger-fg:  192 50 43;
+  --info-bg:    227 241 253; --info-fg:    19 102 176;
+  --accent-bg:  239 227 245; --accent-fg:  61 0 102;
+
+  /* Keyboard focus ring — brand orange, high-contrast on white surfaces,
+     the navy sidebar, and dark mode alike. Single source of truth for the
+     global :focus-visible rule below. */
+  --ring: 254 127 12;
+
+  /* Interactive brand — buttons/links (navy). Contrast pair for text on it. */
+  --primary: 1 0 102;
+  --primary-contrast: 255 255 255;
+
+  /* Elevation — soft navy-tinted shadows for the "Elevated" surface system. */
+  --elev-sm: 0 1px 2px rgba(1,0,102,.06);
+  --elev-md: 0 4px 16px -6px rgba(1,0,102,.14);
+  --elev-lg: 0 14px 34px -12px rgba(1,0,102,.22);
+
+  /* Layout — single source of truth for the sidebar width so the sidebar and
+     the content margin/header offset can never drift (they consume the same
+     token). Expanded 224px / collapsed 68px — the current pixel values. */
+  --sidebar-w: 224px;
+  --sidebar-w-collapsed: 68px;
+}
+
+.dark {
+  --app:         10 10 30;
+  --surface:     20 20 46;
+  --surface-2:   29 29 66;
+  --border:      44 44 86;
+  --text:        236 236 245;
+  --text-muted:  166 166 194;
+  --text-faint:  111 111 144;
+
+  --success-bg: 12 58 44;  --success-fg: 45 212 167;
+  --warning-bg: 58 46 8;   --warning-fg: 255 210 77;
+  --danger-bg:  58 26 26;  --danger-fg:  248 113 113;
+  --info-bg:    16 38 63;  --info-fg:    107 192 255;
+  --accent-bg:  36 16 51;  --accent-fg:  201 139 232;
+
+  /* Slightly brighter orange so the ring stays vivid on dark surfaces. */
+  --ring: 255 147 51;
+
+  /* Navy is too dark on the dark canvas → lighten the interactive brand. */
+  --primary: 100 114 240;
+  --primary-contrast: 255 255 255;
+
+  /* Elevation — deeper neutral shadows read on the dark canvas. */
+  --elev-sm: 0 1px 2px rgba(0,0,0,.4);
+  --elev-md: 0 6px 20px -8px rgba(0,0,0,.55);
+  --elev-lg: 0 16px 40px -12px rgba(0,0,0,.65);
+}
+
+/* ============================================================
+   Global keyboard focus ring (accessibility — WCAG 2.4.7).
+   Applies ONLY for keyboard navigation (:focus-visible), never on
+   mouse/touch, so pointer users see no ring while keyboard users
+   always get a clear, consistent brand-orange indicator. This is
+   the app-wide safety net — every interactive element is covered,
+   including ones that never declared their own focus style. Bare
+   :focus-visible (low specificity) sets only `outline`, so a component
+   that adds its own box-shadow ring still shows through without conflict.
+   The outline follows each element's own border-radius automatically.
+   ============================================================ */
+:focus-visible {
+  outline: 2px solid rgb(var(--ring));
+  outline-offset: 2px;
+}
+/* Kill the legacy default outline for pointer focus (keyboard keeps the
+   ring above). Prevents the dull grey UA outline on click. */
+:focus:not(:focus-visible) { outline: none; }
+
+/* Canvas defaults — inert in light (matches the current slate-50 look),
+   give dark mode a base. Pages that set their own bg still win. */
+body {
+  background-color: rgb(var(--app));
+  color: rgb(var(--text));
+}
+
+/* Sticky table header — tokenized so it themes (was hardcoded white). */
+.table-sticky-header thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: rgb(var(--surface));
+}
+
+/* Accessibility: honour reduced-motion globally (audit P1 — 22 gaps). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   Dark-mode safety net — retrofit readability for pages/components
+   NOT yet migrated to design tokens. Scoped under .dark (2-class
+   specificity > single-class Tailwind utility, so it wins without
+   !important). Remaps ONLY neutral surface/text/border palette
+   classes to theme tokens. Brand + semantic status colors are left
+   untouched. Token-migrated pages don't use these classes, so they
+   are unaffected. Remove once the full token migration is complete.
+   ============================================================ */
+.dark .bg-white { background-color: rgb(var(--surface)); }
+.dark .bg-gray-50,
+.dark .bg-gray-100 { background-color: rgb(var(--surface-2)); }
+.dark .bg-gray-200 { background-color: rgb(var(--border)); }
+
+.dark .text-black,
+.dark .text-gray-900,
+.dark .text-gray-800 { color: rgb(var(--text)); }
+.dark .text-gray-700,
+.dark .text-gray-600,
+.dark .text-gray-500 { color: rgb(var(--text-muted)); }
+.dark .text-gray-400,
+.dark .text-gray-300 { color: rgb(var(--text-faint)); }
+
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300 { border-color: rgb(var(--border)); }
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { border-color: rgb(var(--border)); }
+
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-gray-100:hover { background-color: rgb(var(--surface-2)); }
+.dark .placeholder-gray-400::placeholder,
+.dark .placeholder-gray-500::placeholder { color: rgb(var(--text-faint)); }

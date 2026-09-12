@@ -1,0 +1,36 @@
+<?php
+
+namespace AlphaDirect;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use OwenIt\Auditing\Contracts\Auditable;
+
+class ClaimQuestions extends Model implements Auditable
+{
+    use \OwenIt\Auditing\Auditable;
+    use HasFactory;
+    protected $auditTimestamps = true;
+
+    //
+    protected $fillable = ['risk_type', 'coverage_type', 'question', 'response_type', 'created_by'];
+
+    protected function questionBy()
+    {
+        return $this->belongsTo('AlphaDirect\User', 'created_by');
+    }
+
+    protected function riskType()
+    {
+
+        return $this->belongsTo('AlphaDirect\RiskType', 'risk_type');
+
+    }
+
+    protected function coverageType()
+    {
+
+        return $this->belongsTo('AlphaDirect\RiskType', 'coverage_type');
+
+    }
+}

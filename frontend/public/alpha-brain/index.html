@@ -1,0 +1,1004 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Alpha Brain — Neural Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --orange:#FE7F0C; --cyan:#3FA9F5; --teal:#00B894; --gold:#FFC300; --purple:#8b5cff;
+    --bg:#03030f; --panel:rgba(10,11,30,.55); --panel-solid:rgba(8,9,24,.86);
+    /* --faint carries the "click to see how this is counted" cue, the Type column
+       and the data-protection footer. At #6b73a0 it measured ~4.4:1 on this
+       background — under AA. #8b93bd is ~6.6:1. */
+    --line:rgba(124,142,226,.18); --ink:#eaeefb; --mut:#9aa4cc; --faint:#8b93bd;
+    --hi:#ff5570; --ok:#00d9a3; --warn:#FFC300;
+    --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:"IBM Plex Mono","JetBrains Mono",ui-monospace,Consolas,monospace;
+    --r:14px;
+    --ease:cubic-bezier(.16,1,.3,1);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  /* background-attachment:fixed — without it the gradient stops at the fold and
+     long tabs (features, glossary) scroll onto bare white. */
+  body{background:radial-gradient(120% 90% at 50% 0%,#0a0a24 0%,var(--bg) 55%,#000 100%) #03030f fixed;
+    color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  /* The brain is atmosphere behind the numbers, never competition for them —
+     kept dim enough that body text stays legible over it at every breakpoint. */
+  #brain{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;display:block;opacity:.42;transition:opacity .4s var(--ease)}
+  #brainGlow{position:fixed;left:0;right:0;top:0;height:82vh;z-index:0;pointer-events:none;
+    background:radial-gradient(46% 46% at 50% 38%,rgba(63,169,245,.14),rgba(139,92,255,.06) 55%,transparent 72%);mix-blend-mode:screen}
+  #vig{position:fixed;inset:0;z-index:1;pointer-events:none;box-shadow:inset 0 0 260px 60px rgba(0,0,0,.74)}
+  .app{position:relative;z-index:3;max-width:1220px;margin:0 auto;padding:0 20px 72px}
+
+  /* ── header ─────────────────────────────────────────────── */
+  header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:18px 2px 10px}
+  .spark{width:9px;height:32px;border-radius:2px;background:var(--orange);box-shadow:0 0 18px rgba(254,127,12,.6);flex:0 0 auto}
+  .brand h1{font-family:var(--mono);font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:19px;margin:0}
+  .brand h1 b{color:var(--orange)}
+  .brand .sub{font-family:var(--mono);font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--faint);margin-top:2px}
+  .grow{flex:1}
+  .btn{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11.5px;font-weight:700;
+    letter-spacing:.07em;text-transform:uppercase;color:#fff;background:rgba(124,142,226,.10);
+    border:1px solid var(--line);border-radius:999px;padding:9px 15px;cursor:pointer;text-decoration:none;
+    transition:background .22s var(--ease),border-color .22s var(--ease),transform .22s var(--ease)}
+  .btn:hover{background:rgba(124,142,226,.2);border-color:var(--cyan);transform:translateY(-1px)}
+  .btn.accent{background:rgba(254,127,12,.14);border-color:rgba(254,127,12,.55);box-shadow:0 0 14px rgba(254,127,12,.14)}
+  .btn.accent:hover{background:rgba(254,127,12,.24);border-color:var(--orange)}
+  .greet{font-family:var(--mono);font-size:12px;color:var(--mut);margin-right:2px}
+  .greet b{color:var(--cyan)}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;font-weight:600;
+    text-transform:uppercase;letter-spacing:.07em;padding:7px 13px;border-radius:999px;
+    border:1px solid rgba(0,217,163,.4);background:rgba(0,0,0,.4);color:var(--ok)}
+  .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok)}
+
+  /* ── the one-line answer ────────────────────────────────── */
+  .lede{margin:14px 0 0;background:var(--panel-solid);backdrop-filter:blur(12px);
+    border:1px solid var(--line);border-left:3px solid var(--orange);border-radius:var(--r);padding:20px 22px}
+  .lede .eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--cyan);margin:0 0 10px}
+  .lede p{margin:0;font-size:17px;line-height:1.62;color:var(--ink);max-width:78ch}
+  .lede p b{color:#fff;font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .lede .off{margin-top:12px;font-size:14px;color:var(--ok)}
+  .lede .off b{color:var(--ok)}
+
+  /* ── tabs ───────────────────────────────────────────────── */
+  nav.tabs{display:flex;gap:4px;margin-top:20px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+  nav.tabs button{font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.05em;color:var(--mut);
+    background:none;border:0;border-bottom:2px solid transparent;padding:11px 15px;cursor:pointer;
+    transition:color .2s var(--ease),border-color .2s var(--ease)}
+  nav.tabs button:hover{color:#fff}
+  nav.tabs button[aria-selected="true"]{color:#fff;border-color:var(--orange)}
+  section[role=tabpanel]{padding-top:20px}
+  section[hidden]{display:none}
+
+  /* ── metric tiles ───────────────────────────────────────── */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+  .tile{background:var(--panel);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:var(--r);
+    padding:16px 18px;position:relative;overflow:hidden;text-align:left;width:100%;cursor:pointer;
+    color:inherit;font:inherit;transition:transform .24s var(--ease),border-color .24s var(--ease);
+    /* a <button> does not lay its children out as blocks on its own — make it a column */
+    display:flex;flex-direction:column;align-items:flex-start}
+  .tile:hover:not(:disabled){transform:translateY(-2px);border-color:rgba(124,142,226,.42)}
+  /* No definition on the server → the tile must not pretend to be clickable. */
+  .tile:disabled{cursor:default}
+  .tile::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent,var(--cyan));box-shadow:0 0 14px var(--accent,var(--cyan))}
+  .tile .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--mut);display:flex;align-items:center;gap:7px}
+  .tile .q{width:15px;height:15px;border-radius:50%;border:1px solid var(--line);color:var(--faint);
+    font-size:9.5px;display:inline-grid;place-items:center;flex:0 0 auto}
+  .tile:hover .q{color:var(--cyan);border-color:var(--cyan)}
+  .tile .v{display:block;font-family:var(--mono);font-weight:700;font-size:clamp(26px,3.2vw,36px);line-height:1.06;margin-top:8px;color:#fff;font-variant-numeric:tabular-nums}
+  .tile .d{display:block;font-size:12.5px;color:var(--mut);margin-top:6px;line-height:1.45}
+  .tile .cue{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-top:10px}
+  .tile.total{--accent:#fff} .tile.comp{--accent:var(--purple)} .tile.fin{--accent:var(--orange)}
+  .tile.arms{--accent:var(--ok)} .tile.health{--accent:var(--teal)} .tile.claims{--accent:var(--hi)}
+
+  /* ── the maths, shown ───────────────────────────────────── */
+  .sum{margin-top:14px;background:rgba(0,0,0,.34);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;
+    font-family:var(--mono);font-size:13px;color:var(--mut);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .sum b{color:#fff;font-variant-numeric:tabular-nums}
+  .sum .op{color:var(--faint)}
+  .sum .verdict{margin-left:auto;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase}
+  .sum .verdict.ok{color:var(--ok)} .sum .verdict.bad{color:var(--hi)}
+
+  /* ── panels / cards / tables ────────────────────────────── */
+  .panel{margin-top:18px;background:var(--panel-solid);backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+  .ptitle{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .ptitle h2{font-family:var(--mono);font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;margin:0}
+  .ptitle .meta{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .pbody{padding:18px}
+  .pbody p{margin:0 0 12px;color:var(--mut);max-width:82ch}
+  .pbody p:last-child{margin-bottom:0}
+  /* tabindex=0 on these (see markup) so a keyboard-only user can reach the
+     sideways scroll — otherwise the Detail column is unreachable on a phone. */
+  .scroll{overflow-x:auto}
+  .scroll:focus-visible{outline:2px solid var(--cyan);outline-offset:-2px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
+  thead th{text-align:left;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--faint);font-weight:600;padding:10px 18px;border-bottom:1px solid var(--line);white-space:nowrap}
+  tbody td{padding:11px 18px;border-top:1px solid rgba(124,142,226,.07);color:var(--mut);vertical-align:top}
+  tbody tr:hover{background:rgba(124,142,226,.05)}
+  .pri{display:inline-block;min-width:32px;text-align:center;font-family:var(--mono);font-weight:700;font-size:12px;border-radius:6px;padding:2px 7px}
+  .pri.hi{background:rgba(255,85,112,.17);color:#ff8b9d}
+  .pri.md{background:rgba(254,127,12,.16);color:#ffb15e}
+  .pri.lo{background:rgba(124,142,226,.14);color:#aeb7e0}
+  .dom{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;white-space:nowrap}
+  .title-c{color:var(--ink)}
+  .pager{display:flex;align-items:center;justify-content:center;gap:14px;padding:12px 18px;border-top:1px solid var(--line);font-family:var(--mono);font-size:12px;color:var(--faint);flex-wrap:wrap}
+  .pager button{font-family:var(--mono);font-size:12px;color:var(--mut);background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:8px;padding:7px 13px;cursor:pointer;min-height:34px}
+  .pager button:hover:not(:disabled){color:#fff;border-color:var(--cyan)}
+  .pager button:disabled{opacity:.4;cursor:default}
+
+  /* ── notices ────────────────────────────────────────────── */
+  .note{border-radius:12px;padding:13px 16px;font-size:13.5px;margin-top:14px;line-height:1.55}
+  .note.warn{background:rgba(255,195,0,.08);border:1px solid rgba(255,195,0,.34);color:#ffe08a}
+  .note.info{background:rgba(63,169,245,.07);border:1px solid rgba(63,169,245,.3);color:#b9d9f7}
+  .note.good{background:rgba(0,217,163,.07);border:1px solid rgba(0,217,163,.3);color:#8ff0d3}
+  .note b{color:#fff}
+
+  /* ── feature list ───────────────────────────────────────── */
+  .fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  .fcard{background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:12px;padding:14px 16px;border-left:3px solid var(--st,var(--faint))}
+  .fcard h4{margin:0 0 4px;font-size:14.5px;color:#fff}
+  .fcard .team{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint)}
+  .fcard p{margin:8px 0 0;font-size:13px;color:var(--mut);line-height:1.5}
+  .fcard .tag{display:inline-block;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+    padding:3px 8px;border-radius:5px;margin-top:10px;background:rgba(124,142,226,.13);color:var(--st,var(--mut))}
+  .fcard .blocked{margin-top:9px;font-size:12.5px;color:#ffb0bd;line-height:1.5}
+  .fcard .gap{margin-top:9px;font-size:12.5px;color:#ffe08a;line-height:1.5}
+  .st-live{--st:var(--ok)} .st-ready{--st:var(--cyan)} .st-held{--st:var(--hi)} .st-plumbing{--st:var(--faint)}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .chip{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 13px;
+    border-radius:999px;border:1px solid var(--line);background:rgba(0,0,0,.34);color:var(--mut);cursor:pointer;transition:all .2s var(--ease)}
+  .chip[aria-pressed="true"]{color:#fff;border-color:var(--orange);background:rgba(254,127,12,.14)}
+
+  /* ── extract ────────────────────────────────────────────── */
+  .xgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  .xcard{background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column}
+  .xcard h4{margin:0;font-size:15px;color:#fff}
+  .xcard p{margin:8px 0 14px;font-size:13px;color:var(--mut);line-height:1.5;flex:1}
+  .xcard .acts{display:flex;gap:8px;flex-wrap:wrap}
+
+  /* ── definition drawer ──────────────────────────────────── */
+  .scrim{position:fixed;inset:0;z-index:40;background:rgba(2,2,10,.66);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .26s var(--ease)}
+  .scrim.open{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:min(520px,100%);z-index:41;background:#070818;
+    border-left:1px solid var(--line);box-shadow:-30px 0 70px rgba(0,0,0,.6);padding:26px 26px 40px;overflow-y:auto;
+    transform:translateX(100%);transition:transform .34s var(--ease)}
+  .drawer.open{transform:translateX(0)}
+  /* Closed = out of the tab order AND out of the accessibility tree. Sliding it
+     off-screen is not enough: its close button stayed keyboard-reachable, and
+     aria-modal told a screen reader the page behind was inert when it was not. */
+  .drawer[inert]{visibility:hidden}
+  @media (prefers-reduced-motion:reduce){.drawer,.scrim{transition:none}}
+  .drawer h3{font-family:var(--mono);font-size:15px;letter-spacing:.05em;margin:0 0 4px;color:#fff}
+  .drawer .kicker{font-family:var(--mono);font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--cyan);margin-bottom:14px}
+  .drawer dl{margin:20px 0 0}
+  .drawer dt{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--faint);margin-top:18px}
+  .drawer dd{margin:6px 0 0;font-size:14px;color:var(--ink);line-height:1.6}
+  .drawer dd.mut{color:var(--mut)}
+  .drawer .closeX{position:absolute;top:18px;right:20px;background:none;border:0;color:var(--mut);font-size:22px;cursor:pointer;line-height:1}
+  .drawer .closeX:hover{color:#fff}
+  .drawer .flag{margin-top:18px;background:rgba(255,195,0,.08);border:1px solid rgba(255,195,0,.32);border-radius:10px;padding:12px 14px;font-size:13.5px;color:#ffe08a;line-height:1.55}
+
+  /* ── feature drop-down (reachable from every tab) ───────── */
+  .dropwrap{position:relative}
+  .drop{position:absolute;top:calc(100% + 8px);right:0;z-index:30;width:min(460px,88vw);max-height:70vh;overflow-y:auto;
+    background:#070818;border:1px solid var(--line);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.6);
+    padding:12px;opacity:0;transform:translateY(-6px) scale(.98);pointer-events:none;
+    transition:opacity .2s var(--ease),transform .2s var(--ease)}
+  .drop.open{opacity:1;transform:none;pointer-events:auto}
+  .drop .search{width:100%;background:rgba(0,0,0,.45);border:1px solid var(--line);border-radius:9px;
+    color:var(--ink);font-family:var(--mono);font-size:12.5px;padding:9px 12px;margin-bottom:8px}
+  .drop .search::placeholder{color:var(--faint)}
+  .drop .search:focus{outline:none;border-color:var(--cyan)}
+  .drop .grp{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--faint);padding:12px 8px 5px;border-top:1px solid rgba(124,142,226,.1);margin-top:6px}
+  .drop .grp:first-of-type{border-top:0;margin-top:0}
+  .drop .item{display:block;width:100%;text-align:left;background:none;border:0;border-radius:9px;
+    padding:9px 10px;cursor:pointer;color:var(--ink);font:inherit;font-size:13.5px;
+    border-left:3px solid var(--st,var(--faint));transition:background .16s var(--ease)}
+  .drop .item:hover,.drop .item:focus-visible{background:rgba(124,142,226,.12);outline:none}
+  .drop .item .sub{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--faint);margin-top:3px}
+  .drop .none{padding:16px 10px;color:var(--faint);font-size:13px}
+
+  .faq{margin-top:4px}
+  .faq details{border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.3);margin-bottom:10px;overflow:hidden}
+  .faq summary{cursor:pointer;padding:14px 17px;font-size:14.5px;color:#fff;list-style:none}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary::before{content:"+";color:var(--orange);font-family:var(--mono);margin-right:10px;font-weight:700}
+  .faq details[open] summary::before{content:"–"}
+  .faq p{margin:0;padding:0 17px 16px;color:var(--mut);font-size:14px;line-height:1.6}
+
+  footer{margin-top:28px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--faint);line-height:1.8}
+  .hint{position:fixed;left:14px;bottom:12px;z-index:4;font-family:var(--mono);font-size:10.5px;color:var(--faint);
+    background:rgba(0,0,0,.45);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  @media(max-width:640px){.lede p{font-size:15.5px}.hint{display:none}
+    /* 41 characters at .26em tracking overflowed 375px and was clipped mid-word. */
+    .brand .sub{letter-spacing:.1em;font-size:9.5px}}
+</style>
+</head>
+<body>
+<canvas id="brain" aria-hidden="true"></canvas>
+<div id="brainGlow" aria-hidden="true"></div>
+<div id="vig" aria-hidden="true"></div>
+
+<div class="app">
+  <header>
+    <a class="btn accent" href="/" id="backGraphite">&larr;&nbsp;Back to Graphite</a>
+    <div class="spark"></div>
+    <div class="brand"><h1>ALPHA<b>BRAIN</b></h1><div class="sub">Collections &amp; Compliance · Neural Console</div></div>
+    <div class="grow"></div>
+    <!-- Every feature, one press, from any tab. -->
+    <div class="dropwrap">
+      <button class="btn" id="featBtn" aria-expanded="false" aria-haspopup="true" aria-controls="featDrop">
+        All my features <span id="featCount"></span> <span aria-hidden="true">&#9662;</span>
+      </button>
+      <div class="drop" id="featDrop" role="menu" aria-labelledby="featBtn">
+        <input class="search" id="featSearch" type="search" placeholder="Type to find a feature…" aria-label="Search features">
+        <div id="featList"><div class="none">Loading the feature list…</div></div>
+      </div>
+    </div>
+    <span class="greet" id="greet"></span>
+    <span class="pill" id="pill"><span class="dot"></span>Arms Off · Observe</span>
+  </header>
+
+  <!-- The whole dashboard in one sentence, with the real numbers in it. -->
+  <div class="lede">
+    <p class="eyebrow">// What you are looking at</p>
+    <p id="lede">Reading the overnight sweep…</p>
+    <p class="off" id="ledeOff"></p>
+  </div>
+
+  <nav class="tabs" role="tablist" id="tabs" aria-label="Alpha Brain sections">
+    <button role="tab" id="tabbtn-overview" aria-controls="tab-overview" aria-selected="true"  tabindex="0"  data-tab="overview">Overview</button>
+    <button role="tab" id="tabbtn-queue"    aria-controls="tab-queue"    aria-selected="false" tabindex="-1" data-tab="queue">The list</button>
+    <button role="tab" id="tabbtn-health"   aria-controls="tab-health"   aria-selected="false" tabindex="-1" data-tab="health">Healthcare</button>
+    <button role="tab" id="tabbtn-features" aria-controls="tab-features" aria-selected="false" tabindex="-1" data-tab="features">What it does</button>
+    <button role="tab" id="tabbtn-extract"  aria-controls="tab-extract"  aria-selected="false" tabindex="-1" data-tab="extract">Get the data</button>
+    <button role="tab" id="tabbtn-help"     aria-controls="tab-help"     aria-selected="false" tabindex="-1" data-tab="help">Every number explained</button>
+  </nav>
+
+  <!-- ── OVERVIEW ────────────────────────────────────────── -->
+  <section role="tabpanel" id="tab-overview" aria-labelledby="tabbtn-overview" tabindex="0">
+    <div class="tiles" id="tiles"></div>
+    <div class="sum" id="sum"></div>
+    <div id="overviewNotes"></div>
+    <div class="panel">
+      <div class="ptitle"><h2>Where the exceptions come from</h2><span class="meta" id="breakMeta"></span></div>
+      <div class="scroll" tabindex="0" role="region" aria-label="Breakdown table — scroll sideways for the rest of the columns">
+        <table>
+          <thead><tr><th style="width:150px">Team</th><th style="width:170px">Type</th><th style="width:110px">Count</th><th>What it is</th></tr></thead>
+          <tbody id="breakRows"><tr><td colspan="4" style="text-align:center;padding:22px;color:var(--faint)">Reading the overnight sweep…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── QUEUE ───────────────────────────────────────────── -->
+  <section role="tabpanel" id="tab-queue" aria-labelledby="tabbtn-queue" tabindex="0" hidden>
+    <div class="note info">Highest priority first. <b>Priority is a ranking, not an amount</b> — 80 and above is urgent, below 40 is for information. Nothing here has been acted on.</div>
+    <div class="panel">
+      <div class="ptitle"><h2>Exception queue</h2><span class="meta" id="qmeta">loading…</span></div>
+      <div class="chips" style="padding:12px 18px 0;margin-bottom:0" id="qteams"></div>
+      <div class="scroll" tabindex="0" role="region" aria-label="Exception queue — scroll sideways for the detail column">
+        <table><thead><tr><th style="width:74px">Pri</th><th style="width:130px">Type</th><th>What is wrong</th><th>Detail</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="4" style="text-align:center;padding:26px;color:var(--faint)">Loading the list…</td></tr></tbody></table>
+      </div>
+      <div class="pager" id="pager"></div>
+    </div>
+  </section>
+
+  <!-- ── HEALTHCARE ──────────────────────────────────────── -->
+  <section role="tabpanel" id="tab-health" aria-labelledby="tabbtn-health" tabindex="0" hidden>
+    <div class="tiles" id="hTiles"></div>
+    <div id="hNotes"><div class="note info">Loading the healthcare counts…</div></div>
+    <div class="panel">
+      <div class="ptitle"><h2>What is NOT counted here</h2></div>
+      <div class="pbody" id="hPending"><p>Loading…</p></div>
+    </div>
+  </section>
+
+  <!-- ── FEATURES ────────────────────────────────────────── -->
+  <section role="tabpanel" id="tab-features" aria-labelledby="tabbtn-features" tabindex="0" hidden>
+    <div class="note info" id="fHeadline">Loading the feature list…</div>
+    <div class="chips" id="fChips"></div>
+    <div class="fgrid" id="fGrid"></div>
+  </section>
+
+  <!-- ── EXTRACT ─────────────────────────────────────────── -->
+  <section role="tabpanel" id="tab-extract" aria-labelledby="tabbtn-extract" tabindex="0" hidden>
+    <div class="note info" id="xNote">Loading what you can extract…</div>
+    <div class="xgrid" id="xGrid"></div>
+  </section>
+
+  <!-- ── HELP ────────────────────────────────────────────── -->
+  <section role="tabpanel" id="tab-help" aria-labelledby="tabbtn-help" tabindex="0" hidden>
+    <div class="faq" id="faq"><div class="note info">Loading the definitions…</div></div>
+    <div class="panel">
+      <div class="ptitle"><h2>Every number on this page</h2><span class="meta">click any one for the full definition</span></div>
+      <div class="scroll" tabindex="0" role="region" aria-label="Definitions table — scroll sideways for the rest of the columns">
+        <table><thead><tr><th style="width:230px">Number</th><th>What it means</th></tr></thead>
+        <tbody id="glossRows"><tr><td colspan="2" style="text-align:center;padding:22px;color:var(--faint)">Loading…</td></tr></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    ALPHA BRAIN · isolated decision engine · ARMS OFF — approvals are recorded, nothing is sent, moved or cancelled<br>
+    Customer identity documents are read through a masked view: yes/no flags only. No Omang, passport or scan leaves the box, and nothing goes to an outside AI service.
+  </footer>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" inert aria-hidden="true">
+  <button class="closeX" id="drawerClose" aria-label="Close">&times;</button>
+  <div class="kicker" id="drawerKicker">Definition</div>
+  <h3 id="drawerTitle">—</h3>
+  <div id="drawerBody"></div>
+</aside>
+<div class="hint">drag to rotate · scroll wheel to zoom</div>
+
+<script src="./three.min.js"></script>
+<script>
+/* ═══ Alpha Brain console ═══════════════════════════════════════════════════
+   Served same-origin from the Graphite frontend, so it reads the signed-in
+   Sanctum token and calls the RBAC-gated proxy (/api/v1/brain/*). The service
+   token never reaches the browser.
+
+   DESIGN RULE (CFO 2026-07-28): the page NEVER renders a number it cannot
+   explain. Every tile is a button that opens its definition — what it means,
+   how it is counted, which table it came from, what is deliberately excluded,
+   and who acts on it. Definitions come from the server (lib/glossary.js), so
+   the explanation can never drift away from the code that produced the figure.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const $=id=>document.getElementById(id);
+const nf=n=>(Number(n)||0).toLocaleString();
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const todayish=t=>{const d=new Date(t);return !isNaN(d)&&d.toDateString()===new Date().toDateString();};
+const API=(function(){const o=location.origin;return o.includes('-fe.')?o.replace('-fe.','-be.')+'/api/v1':o+'/api/v1';})();
+const TOKEN=localStorage.getItem('sanctum_token');
+const authFetch=(path,init)=>fetch(API+path,Object.assign({headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}},init||{}));
+const bandOf=p=>p>=80?'hi':p>=40?'md':'lo';
+const when=t=>t?new Date(t).toLocaleString():'—';
+
+/* State the whole page renders from. */
+const S={sum:null,queue:null,gloss:null,features:null,healthcare:null,extract:null,restricted:false};
+
+/* ── greeting + back link ─────────────────────────────────────────────── */
+(function(){const h=new Date().getHours();const g=h<12?'Good morning':h<17?'Good afternoon':'Good evening';
+  let name=''; try{const u=JSON.parse(localStorage.getItem('user')||'{}');name=(u.firstName||u.name||u.first_name||'').toString().split(' ')[0];}catch(e){}
+  $('greet').innerHTML=g+(name?(', <b>'+esc(name)+'</b>'):'');
+  $('backGraphite').setAttribute('href','/');})();
+
+/* ── definition drawer ───────────────────────────────────────────────── */
+let lastFocus=null, lastMetricId=null;
+const drawerOpen=()=>$('drawer').classList.contains('open');
+function openDef(id){
+  const m=S.gloss&&S.gloss.metrics&&S.gloss.metrics[id];
+  lastFocus=document.activeElement; lastMetricId=id;
+  $('drawerKicker').textContent='Definition';
+  $('drawerTitle').textContent=m?m.label:'No definition recorded';
+  if(!m){
+    /* Never silently do nothing. A figure with no definition is a fault to
+       report, and the reader must be told rather than left clicking a dead tile. */
+    $('drawerBody').innerHTML='<dl><dt>What we can tell you</dt>'
+      +'<dd>This figure has no plain-English definition recorded, so we cannot tell you how it was counted.</dd>'
+      +'<dt>What to do</dt><dd class="mut">Do not quote it. Tell IT that the definition for '
+      +`<b>${esc(id)}</b> is missing.</dd></dl>`;
+  }else{
+    const row=(t,v,cls)=>v?`<dt>${esc(t)}</dt><dd${cls?' class="'+cls+'"':''}>${esc(v)}</dd>`:'';
+    $('drawerBody').innerHTML='<dl>'
+      +row('In plain English',m.means)
+      +row('How it is counted',m.howCounted)
+      +(m.formula?row('Formula',m.formula):'')
+      +row('What is deliberately left out',m.excludes,'mut')
+      +row('Where it comes from',m.source,'mut')
+      +row('Who acts on it',m.whoActs,'mut')
+      +'</dl>'
+      +(m.caveat?`<div class="flag"><b>Read this before you quote it.</b><br>${esc(m.caveat)}</div>`:'');
+  }
+  const d=$('drawer');
+  d.removeAttribute('inert'); d.removeAttribute('aria-hidden');
+  d.classList.add('open'); $('scrim').classList.add('open');
+  $('drawerClose').focus();
+}
+function closeDef(){
+  /* Guard: without this, Escape ANYWHERE on the page re-ran the focus restore
+     and yanked the reader back up to whichever tile was opened last. */
+  if(!drawerOpen())return;
+  const d=$('drawer');
+  d.classList.remove('open'); $('scrim').classList.remove('open');
+  d.setAttribute('inert',''); d.setAttribute('aria-hidden','true');
+  /* renderTiles() re-runs when the healthcare counts land, so the element we
+     came from may be detached by now — fall back to the live one, then body. */
+  let back=(lastFocus&&lastFocus.isConnected)?lastFocus:null;
+  if(!back&&lastMetricId)back=document.querySelector(`[data-metric="${lastMetricId}"]`);
+  (back||document.body).focus();
+  lastFocus=null; lastMetricId=null;
+}
+$('drawerClose').onclick=closeDef; $('scrim').onclick=closeDef;
+addEventListener('keydown',e=>{
+  if(!drawerOpen())return;
+  if(e.key==='Escape'){closeDef();return;}
+  if(e.key!=='Tab')return;
+  /* Keep Tab inside the dialog — aria-modal="true" is a lie otherwise. */
+  const stops=[$('drawerClose'),...$('drawerBody').querySelectorAll('a[href],button,[tabindex]:not([tabindex="-1"])')];
+  const first=stops[0], last=stops[stops.length-1];
+  if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+  else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+});
+
+/* ── tabs ─────────────────────────────────────────────────────────────── */
+const PANELS=['overview','queue','health','features','extract','help'];
+function showTab(name){
+  PANELS.forEach(p=>{const el=$('tab-'+p);if(el)el.hidden=(p!==name);});
+  [...$('tabs').children].forEach(b=>{
+    const on=b.dataset.tab===name;
+    b.setAttribute('aria-selected',String(on));
+    b.tabIndex=on?0:-1;   // one tab stop for the whole strip, per the ARIA tabs pattern
+  });
+  // The brain visual belongs to the hero; dim it behind the dense tabs so text stays readable.
+  const c=$('brain'); if(c)c.style.opacity=(name==='overview')?'0.42':'0.10';
+  const h=document.querySelector('.hint'); if(h&&window.THREE)h.style.display=(name==='overview')?'':'none';
+}
+function goTab(name,focus){
+  showTab(name);
+  if(focus){const b=$('tabbtn-'+name); if(b)b.focus();}
+  /* Switching tab from halfway down a long list must not land the reader in
+     blank space — put them back at the top of the new panel. */
+  window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'});
+}
+[...$('tabs').children].forEach(b=>{b.onclick=()=>goTab(b.dataset.tab,false);});
+$('tabs').addEventListener('keydown',e=>{
+  const i=PANELS.indexOf(document.activeElement.dataset&&document.activeElement.dataset.tab);
+  if(i<0)return;
+  const go=n=>{e.preventDefault();goTab(PANELS[n],true);};
+  if(e.key==='ArrowRight')go((i+1)%PANELS.length);
+  else if(e.key==='ArrowLeft')go((i-1+PANELS.length)%PANELS.length);
+  else if(e.key==='Home')go(0);
+  else if(e.key==='End')go(PANELS.length-1);
+});
+
+/* ── whole-page failure notice ───────────────────────────────────────── */
+function notice(msg){
+  ['.lede','nav.tabs','footer','.hint'].forEach(s=>{const e=document.querySelector(s);if(e)e.style.display='none';});
+  PANELS.forEach(p=>{const el=$('tab-'+p);if(el)el.hidden=true;});
+  const box=document.createElement('div');
+  box.style.cssText='position:relative;z-index:3;margin:12vh auto;max-width:540px;text-align:center;background:rgba(10,11,30,.78);border:1px solid var(--line);border-radius:16px;padding:30px 26px;font-family:var(--mono);color:var(--mut);line-height:1.7';
+  box.innerHTML='<div style="color:var(--cyan);letter-spacing:.22em;font-size:11px;text-transform:uppercase;margin-bottom:12px">Alpha Brain</div>'+esc(msg);
+  document.querySelector('.app').appendChild(box);
+}
+
+/* ── the one-line answer ─────────────────────────────────────────────── */
+function renderLede(){
+  const q=S.sum||{},c=q.counts||{};
+  /* A zero must never read as an all-clear. No sweep at all, or a sweep that is
+     not from today, is a FAULT — say so instead of printing "found 0 things". */
+  if(!q.generatedAt){
+    $('lede').innerHTML='<b>The Brain has not produced any figures yet.</b> There is no sweep to show, '
+      +'so nothing on this page should be read as "nothing to do". Tell IT.';
+    $('ledeOff').innerHTML='';
+    return;
+  }
+  const stale=!todayish(q.generatedAt);
+  const fin=Number(c.Finance)||0, comp=Number(c.Compliance)||0;
+  const other=Object.entries(c).filter(([k])=>k!=='Finance'&&k!=='Compliance').reduce((s,[,v])=>s+(Number(v)||0),0);
+  const parts=[];
+  if(fin) parts.push(`<b>${nf(fin)}</b> are about money — overdue accounts and policies that have stopped paying`);
+  if(comp) parts.push(`<b>${nf(comp)}</b> are about paperwork — customers whose KYC is not clean`);
+  if(other) parts.push(`<b>${nf(other)}</b> sit with Claims and Underwriting`);
+  /* "As at", not "last night": the sweep runs at 07:45 Gaborone, deliberately
+     AFTER the overnight debit run. */
+  $('lede').innerHTML=(stale
+      ? `<b>These figures are NOT from today.</b> The last sweep was ${esc(when(q.generatedAt))} — treat everything below as out of date and tell IT. `
+      : '')
+    +`As at ${esc(when(q.generatedAt))} the Brain read Graphite and found <b>${nf(q.total)}</b> `
+    +`things that need a person to look at them. `+(parts.length?parts.join('; ')+'.':'');
+  $('ledeOff').innerHTML=q.liveArms
+    ? '<b>Live arms are ON</b> — the Brain can act on approved items.'
+    : '<b>It has done nothing about any of them.</b> Live arms are off: it decides, it ranks, it records your approval — it sends, moves and cancels nothing.';
+}
+
+/* ── tiles ───────────────────────────────────────────────────────────── */
+/* Fallback heading when the server has no definition: a human phrase, never the
+   raw id. A tile with no definition is also NOT clickable — it must not invite a
+   click that does nothing. */
+const humanise=id=>String(id).replace(/_/g,' ').replace(/^./,c=>c.toUpperCase());
+function tile(cls,metricId,value,detail){
+  const m=S.gloss&&S.gloss.metrics&&S.gloss.metrics[metricId];
+  const label=m?m.label:humanise(metricId);
+  return `<button class="tile ${cls}" data-metric="${esc(metricId)}" type="button"${m?'':' disabled'}>`
+    +`<span class="k">${esc(label)}${m?'<span class="q" aria-hidden="true">?</span>':''}</span>`
+    +`<span class="v">${esc(value)}</span>`
+    +`<span class="d">${esc(detail||(m?m.means:'No definition recorded — do not quote this figure.'))}</span>`
+    +(m?'<span class="cue">click to see how this is counted</span>':'')+`</button>`;
+}
+function wireTiles(root){
+  root.querySelectorAll('.tile:not([disabled])').forEach(b=>{b.onclick=()=>openDef(b.dataset.metric);});
+}
+function renderTiles(){
+  const q=S.sum||{},c=q.counts||{};
+  const hc=S.healthcare||{};
+  let html=tile('total','total_exceptions',nf(q.total),'Everything below, added up.')
+    +tile('fin','finance',nf(c.Finance),'Money we are owed or at risk of not collecting.')
+    +tile('comp','compliance',nf(c.Compliance),'Active customers whose paperwork is not clean.');
+  if(c.Claims) html+=tile('claims','high_arrears',nf(c.Claims),'Claims flagged for fraud signals or oversight.');
+  if(!hc.awaiting&&hc.active_policies) html+=tile('health','healthcare_non_compliance',nf(hc.non_compliant),`Out of ${nf(hc.active_policies)} active health policies.`);
+  html+=tile('arms','live_arms',q.liveArms?'LIVE':'OFF','Nothing has ever been sent or executed.');
+  const t=$('tiles'); t.innerHTML=html; wireTiles(t);
+
+  /* Show the addition, so "the numbers don't add up" can be checked on screen.
+     Every team stays in the equation even at zero — filtering zeros out meant a
+     team whose feed had broken vanished from the sum while the tick still said
+     "adds up", certifying a total with a missing team. */
+  const entries=Object.entries(c);
+  const sumOf=entries.reduce((s,[,v])=>s+(Number(v)||0),0);
+  const ok=sumOf===Number(q.total||0);
+  const zeroTeams=entries.filter(([,v])=>!Number(v)).map(([k])=>k);
+  $('sum').innerHTML=(entries.length
+      ? entries.map(([k,v])=>`<span><b>${nf(v)}</b> ${esc(k)}</span>`).join('<span class="op">+</span>')
+      : '<span>no teams reported</span>')
+    +`<span class="op">=</span><span><b>${nf(sumOf)}</b> total</span>`
+    +`<span class="verdict ${ok?'ok':'bad'}">${ok?'✓ adds up':'✗ does not add up — report this'}</span>`
+    +(zeroTeams.length?`<span style="flex-basis:100%;color:#ffe08a;font-size:12px">`
+      +`${esc(zeroTeams.join(', '))} reported nothing — check that feed before treating it as clean.</span>`:'');
+}
+
+/* ── overview breakdown + honest empty states ────────────────────────── */
+const DOMAIN_META={
+  debtors:{metric:'debtors',what:'Accounts with a balance past 60 days, or money received that was never matched to an invoice.'},
+  collections:{metric:'collections',what:'Policies that missed two months in a row, on the suspend → grace → cancel path.'},
+  high_arrears:{metric:'high_arrears',what:'Claims approved even though the policy was more than 3 months behind.'},
+  kyc:{metric:'kyc',what:'Active customers with identity or address documents missing, expired or unreadable.'},
+  healthcare:{metric:'healthcare_non_compliance',what:'Active health policies (MIS / ADH) whose customer paperwork is not clean.'},
+  fraud:{metric:'fraud',what:'Claims carrying fraud signals — hold or refer.'},
+  event:{metric:'event',what:'Lifecycle events that need a signature, plus one summary line per routine event type.'},
+};
+function renderBreakdown(){
+  const bd=(S.sum&&S.sum.byDomain)||{};
+  const rows=[];
+  for(const [team,domains] of Object.entries(bd)){
+    for(const [dom,n] of Object.entries(domains||{})){
+      /* A feed we have not described yet must say so — a count with no reference
+         is the exact thing this page exists to prevent. 16 modules are waiting to
+         be wired in; the first one switched on must not land here as a bare dash. */
+      const meta=DOMAIN_META[dom]||{metric:null,what:'No definition recorded for this feed yet — do not quote it, tell IT.'};
+      rows.push(`<tr><td class="dom">${esc(team)}</td><td class="dom">${esc(dom.replace(/_/g,' '))}</td>`
+        +`<td><b style="color:#fff;font-family:var(--mono)">${nf(n)}</b></td>`
+        +`<td>${esc(meta.what)}${meta.metric?` <button class="q" style="cursor:pointer;background:none" data-metric="${esc(meta.metric)}" aria-label="see the definition">?</button>`:''}</td></tr>`);
+    }
+  }
+  $('breakRows').innerHTML=rows.length?rows.join(''):'<tr><td colspan="4" style="text-align:center;padding:22px;color:var(--faint)">No breakdown available — the sweep has not produced one yet.</td></tr>';
+  $('breakRows').querySelectorAll('[data-metric]').forEach(b=>{b.onclick=()=>openDef(b.dataset.metric);});
+  $('breakMeta').textContent='source: '+((S.sum&&S.sum.source)||'—');
+
+  /* Empty feeds are stated, never left as a silent zero. */
+  const notes=[];
+  const finDomains=(bd.Finance||{});
+  if(!finDomains.collections){
+    notes.push(`<div class="note warn"><b>The non-payment clock produced nothing on the last sweep.</b> `
+      +`That is a gap in the collections feed, not evidence that everybody is paying. `
+      +`Until it is fixed, the Finance number here is debtor ageing only.</div>`);
+  }
+  const comp=(S.sum&&S.sum.counts&&S.sum.counts.Compliance)||0;
+  if(comp) notes.push(`<div class="note info"><b>Why Compliance looks small.</b> `
+    +`It counts today's chase list: KYC not approved, customer holds a live policy, record opened in the last 400 days. `
+    +`The full backlog is a bigger, separate figure — open the Compliance tile to see exactly what is filtered out.</div>`);
+  if(S.restricted) notes.push(`<div class="note info">You can see the totals. The customer-level list is limited to Finance, Compliance, Underwriting and Claims.</div>`);
+  const src=(S.sum&&S.sum.source)||'';
+  if(/fixture/i.test(src)) notes.push(`<div class="note warn"><b>These are TEST numbers, not real data.</b> The sweep fell back to a sample file (source: ${esc(src)}).</div>`);
+  $('overviewNotes').innerHTML=notes.join('');
+}
+
+/* ── queue ───────────────────────────────────────────────────────────── */
+function renderQueue(){
+  const q=S.queue||{},teams=q.teams||{},names=Object.keys(teams);
+  const chips=$('qteams'),rowsEl=$('rows'),pagerEl=$('pager'),PAGE=25;
+  if(!names.length){
+    chips.innerHTML='';
+    /* "No exceptions" is only ever safe to say when a sweep actually ran. Before
+       the first sweep the snapshot is legitimately empty — saying "none" there
+       would be a false all-clear. */
+    const msg=S.restricted
+      ? 'The customer-level list is restricted to Finance, Compliance, Underwriting and Claims. The totals on Overview are open to everyone.'
+      : (q.generatedAt
+        ? 'No exceptions in the queue.'
+        : 'The Brain has not produced a list yet — this is NOT the same as having nothing to do. Tell IT.');
+    rowsEl.innerHTML=`<tr><td colspan="4" style="text-align:center;color:var(--faint);padding:26px;line-height:1.7">${esc(msg)}</td></tr>`;
+    pagerEl.innerHTML=''; $('qmeta').textContent='—'; return;
+  }
+  function draw(team,page){
+    page=page||0; rowsEl.innerHTML='';
+    const all=teams[team]||[],total=(q.counts||{})[team]||all.length;
+    if(!all.length){rowsEl.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--faint);padding:22px">Nothing for this team.</td></tr>';pagerEl.innerHTML='';return;}
+    const pages=Math.ceil(all.length/PAGE); page=Math.max(0,Math.min(page,pages-1)); const start=page*PAGE;
+    rowsEl.innerHTML=all.slice(start,start+PAGE).map(it=>{
+      const b=bandOf(it.priority||0);
+      return `<tr><td><span class="pri ${b}">${it.priority||0}</span></td><td class="dom">${esc(it.domain)}</td>`
+        +`<td class="title-c">${esc(it.title)}${it.needsApproval?' <span style="color:var(--orange);font-family:var(--mono);font-size:10px">· needs a signature</span>':''}</td>`
+        +`<td>${esc(it.detail||'—')}</td></tr>`;
+    }).join('');
+    pagerEl.innerHTML=`<button ${page===0?'disabled':''} id="pgPrev">&lsaquo;&nbsp;Prev</button>`
+      +`<span>showing ${start+1}–${Math.min(start+PAGE,all.length)} of ${nf(all.length)} loaded`
+      +(total>all.length?` · <b style="color:#ffe08a">${nf(total)} exist in total — download the full list from “Get the data”</b>`:'')+`</span>`
+      +`<button ${page>=pages-1?'disabled':''} id="pgNext">Next&nbsp;&rsaquo;</button>`;
+    const p=$('pgPrev'),n=$('pgNext'); if(p)p.onclick=()=>draw(team,page-1); if(n)n.onclick=()=>draw(team,page+1);
+  }
+  chips.innerHTML=names.map((t,i)=>`<button class="chip" aria-pressed="${i===0}" data-team="${esc(t)}">${esc(t)} · ${nf((q.counts||{})[t]||(teams[t]||[]).length)}</button>`).join('');
+  chips.querySelectorAll('.chip').forEach(b=>{b.onclick=()=>{
+    chips.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed','false'));
+    b.setAttribute('aria-pressed','true'); draw(b.dataset.team,0);};});
+  $('qmeta').textContent='source: '+((q.source||'—').replace('graphite-ro','ro'))+' · generated '+when(q.generatedAt);
+  draw(names[0],0);
+}
+
+/* ── healthcare ──────────────────────────────────────────────────────── */
+function renderHealthcare(){
+  const h=S.healthcare||{};
+  if(h.awaiting||!h.active_policies){
+    $('hTiles').innerHTML='';
+    $('hNotes').innerHTML='<div class="note warn"><b>The healthcare figures have not been produced yet.</b> '
+      +'They are built by the nightly sweep against the read-only replica. If this persists past tomorrow morning, tell IT.</div>';
+  }else{
+    const pct=h.active_policies?Math.round(h.non_compliant/h.active_policies*100):0;
+    const t=$('hTiles');
+    /* These MUST use the healthcare_* definitions, not the whole-book ones — the
+       tile heading comes from the definition's label, so borrowing
+       kyc_gap_active_book / kyc / by_category printed health-only figures under
+       whole-book names and gave two different numbers the same title. */
+    t.innerHTML=tile('health','healthcare_non_compliance',nf(h.non_compliant),`${pct}% of the ${nf(h.active_policies)} active health policies.`)
+      +tile('comp','healthcare_no_docs',nf(h.no_docs),'Health policies with NOT ONE document on file.')
+      +tile('comp','healthcare_kyc_not_approved',nf(h.kyc_not_approved),'Health policies where documents exist but are not approved.')
+      +tile('total','healthcare_active_policies',nf(h.active_policies),'Active health policies (MIS / ADH) — the denominator.');
+    wireTiles(t);
+    $('hNotes').innerHTML='<div class="note warn"><b>This is identity paperwork only.</b> '
+      +'It is NOT full health-scheme compliance. Do not quote it as such.</div>'
+      +`<div class="note good">Figures as at ${esc(when(h.generatedAt))}. Counts only — no member reached this page.</div>`;
+  }
+  const pend=(h._pending||[]);
+  $('hPending').innerHTML='<p>These health-scheme rules are <b>not counted anywhere</b>, because Compliance has not defined them. '
+    +'We do not invent health rules — the same discipline applied to the AML monthly checks.</p>'
+    +(pend.length?'<ul style="color:var(--mut);margin:0;padding-left:20px;line-height:1.9">'
+      +pend.map(p=>`<li>${esc(p.replace(/_/g,' '))}</li>`).join('')+'</ul>':'<p>None outstanding.</p>')
+    +'<p style="margin-top:14px">To close this gap, Compliance needs to write down, for each rule: what makes a member compliant, and which field in Graphite proves it.</p>';
+}
+
+/* ── features ────────────────────────────────────────────────────────── */
+function renderFeatures(){
+  const r=S.features;
+  if(!r){$('fHeadline').textContent='The feature list is unavailable right now.';return;}
+  $('fHeadline').innerHTML=`<b>${esc(r.headline)}</b> Every one of the ${r.total} is listed below with what it does and whether it is switched on.`
+    +` You can also press <b>All my features</b> at the top of any page to drop the whole list down and search it.`;
+  $('featCount').textContent='· '+r.total;
+  renderFeatureDrop('');
+  const order=STATUS_ORDER;
+  const chips=$('fChips');
+  chips.innerHTML=`<button class="chip" aria-pressed="true" data-st="all">All · ${r.total}</button>`
+    +order.map(s=>`<button class="chip" aria-pressed="false" data-st="${s}">${esc((r.statusMeta[s]||{}).label||s)} · ${r.counts[s]||0}</button>`).join('');
+  function draw(st){
+    const list=(st==='all')?r.features:r.features.filter(f=>f.status===st);
+    $('fGrid').innerHTML=list.map(f=>`<div class="fcard st-${esc(f.status)}">`
+      +`<div class="team">${esc(f.team||'')}</div><h4>${esc(f.name)}</h4>`
+      +`<p>${esc(f.does||'')}</p>`
+      +(f.why?`<p style="color:var(--faint)">${esc(f.why)}</p>`:'')
+      +(f.toTurnOn?`<p style="color:#b9d9f7">To switch on: ${esc(f.toTurnOn)}</p>`:'')
+      +(f.gap?`<div class="gap"><b>Gap:</b> ${esc(f.gap)}</div>`:'')
+      +(f.heldBecause?`<div class="blocked"><b>Held because:</b> ${esc(f.heldBecause)}${f.unblockedBy?` <b>Unblocked by:</b> ${esc(f.unblockedBy)}`:''}</div>`:'')
+      +`<span class="tag">${esc((r.statusMeta[f.status]||{}).label||f.status)}</span></div>`).join('')
+      ||'<div class="note info">Nothing in this group.</div>';
+  }
+  chips.querySelectorAll('.chip').forEach(b=>{b.onclick=()=>{
+    chips.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed','false'));
+    b.setAttribute('aria-pressed','true'); draw(b.dataset.st);};});
+  draw('all');
+}
+
+/* ── the feature drop-down (CFO 28 Jul: "a button people press and it drops
+      down") — available from EVERY tab, not just the Features tab, because the
+      question "what can this thing actually do" comes up wherever you are. ─── */
+const STATUS_ORDER=['live','ready','held','plumbing'];
+function openFeatureDetail(f){
+  /* Reuse the definition drawer so a feature reads the same way a number does. */
+  lastFocus=document.activeElement; lastMetricId=null;
+  const meta=(S.features&&S.features.statusMeta&&S.features.statusMeta[f.status])||{};
+  const row=(t,v,cls)=>v?`<dt>${esc(t)}</dt><dd${cls?' class="'+cls+'"':''}>${esc(v)}</dd>`:'';
+  $('drawerKicker').textContent='Feature';
+  $('drawerTitle').textContent=f.name;
+  $('drawerBody').innerHTML='<dl>'
+    +row('Status',`${meta.label||f.status} — ${meta.means||''}`)
+    +row('Whose it is',f.team)
+    +row('What it does',f.does)
+    +row('Why it exists',f.why,'mut')
+    +row('To switch it on',f.toTurnOn,'mut')
+    +'</dl>'
+    +(f.gap?`<div class="flag"><b>Gap.</b><br>${esc(f.gap)}</div>`:'')
+    +(f.heldBecause?`<div class="flag"><b>Held because.</b><br>${esc(f.heldBecause)}`
+      +(f.unblockedBy?`<br><br><b>Unblocked by:</b> ${esc(f.unblockedBy)}`:'')+'</div>':'');
+  const d=$('drawer');
+  d.removeAttribute('inert'); d.removeAttribute('aria-hidden');
+  d.classList.add('open'); $('scrim').classList.add('open');
+  $('drawerClose').focus();
+}
+function renderFeatureDrop(filter){
+  const r=S.features;
+  if(!r){$('featList').innerHTML='<div class="none">The feature list is unavailable right now.</div>';return;}
+  const q=String(filter||'').trim().toLowerCase();
+  const match=f=>!q||(f.name+' '+(f.does||'')+' '+(f.team||'')).toLowerCase().includes(q);
+  let html='';
+  for(const st of STATUS_ORDER){
+    const list=r.features.filter(f=>f.status===st&&match(f));
+    if(!list.length)continue;
+    html+=`<div class="grp">${esc((r.statusMeta[st]||{}).label||st)} · ${list.length}</div>`
+      +list.map(f=>`<button class="item st-${esc(f.status)}" role="menuitem" data-fid="${esc(f.id)}">`
+        +`${esc(f.name)}<span class="sub">${esc(f.team||'')} · ${esc((r.statusMeta[f.status]||{}).label||f.status)}</span></button>`).join('');
+  }
+  $('featList').innerHTML=html||'<div class="none">Nothing matches that.</div>';
+  $('featList').querySelectorAll('[data-fid]').forEach(b=>{
+    b.onclick=()=>{const f=r.features.find(x=>x.id===b.dataset.fid); if(f){closeFeatureDrop();openFeatureDetail(f);}};
+  });
+}
+function openFeatureDrop(){
+  $('featDrop').classList.add('open');
+  $('featBtn').setAttribute('aria-expanded','true');
+  $('featSearch').value=''; renderFeatureDrop('');
+  $('featSearch').focus();
+}
+function closeFeatureDrop(){
+  $('featDrop').classList.remove('open');
+  $('featBtn').setAttribute('aria-expanded','false');
+}
+$('featBtn').onclick=()=>{ $('featDrop').classList.contains('open')?closeFeatureDrop():openFeatureDrop(); };
+$('featSearch').oninput=e=>renderFeatureDrop(e.target.value);
+/* Click-away and Escape close it. Checked before the drawer's own Escape handler
+   would fire, so one Escape never closes two things. */
+addEventListener('click',e=>{
+  if(!$('featDrop').classList.contains('open'))return;
+  if(!e.target.closest('.dropwrap'))closeFeatureDrop();
+});
+addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&$('featDrop').classList.contains('open')){closeFeatureDrop();$('featBtn').focus();}
+},true);
+
+/* ── extract ─────────────────────────────────────────────────────────── */
+/* Why the messages are branched by status: "you need a permission" was shown for
+   an expired session and for a server fault too, which sent people to ask for
+   access they already had. And the error goes in the card, never over #xNote —
+   overwriting that wiped the row-limit and Monday-email explanation for good. */
+function downloadError(card,status,msg){
+  let text;
+  if(status===401) text='Your Graphite session has expired. Sign in again, then try once more.';
+  else if(status===403) text='You do not have permission to download this. It needs the Finance, Compliance, Underwriting or Claims permission.';
+  else if(status===0) text='The download could not reach the server. Check your connection, then try again.';
+  else text=`The file could not be built (${esc(msg||('error '+status))}). Nothing is wrong with your access — tell IT.`;
+  let box=card.querySelector('.dlerr');
+  if(!box){box=document.createElement('div');box.className='dlerr note warn';box.style.marginTop='12px';card.appendChild(box);}
+  box.innerHTML=text;
+}
+function download(dataset,format,btn){
+  /* fetch + object-URL, because the download needs the signed-in credentials. */
+  const card=btn.closest('.xcard');
+  const err=card&&card.querySelector('.dlerr'); if(err)err.remove();
+  const siblings=card?[...card.querySelectorAll('button[data-ds]')]:[btn];
+  const was=btn.textContent;
+  /* Building a big workbook takes seconds. Without this the clerk clicks again,
+     and every click is another full extract plus another audit row. */
+  siblings.forEach(b=>{b.disabled=true;});
+  btn.textContent='Preparing…';
+  authFetch(`/brain/extract?dataset=${encodeURIComponent(dataset)}&format=${format}`)
+    .then(r=>{
+      if(!r.ok){const e=new Error('HTTP '+r.status);e.status=r.status;throw e;}
+      return r.blob().then(b=>({b,r}));
+    })
+    .then(({b,r})=>{
+      const cd=r.headers.get('content-disposition')||'';
+      const m=/filename="?([^"]+)"?/.exec(cd);
+      const a=document.createElement('a');
+      const url=URL.createObjectURL(b);
+      a.href=url; a.download=m?m[1]:`alpha-brain-${dataset}.${format}`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),4000);
+    })
+    .catch(e=>{ if(card)downloadError(card,e.status||0,e.message); })
+    .finally(()=>{ btn.textContent=was; siblings.forEach(b=>{b.disabled=false;}); });
+}
+function renderExtract(){
+  const x=S.extract;
+  if(!x){$('xNote').className='note warn';$('xNote').textContent='The extract menu is unavailable right now.';return;}
+  $('xNote').className='note info';
+  $('xNote').innerHTML=`<b>Pull the data yourself — no need to ask anyone.</b> Excel or CSV, up to ${nf(x.maxRows)} rows a sheet. `
+    +`Every workbook opens with a “Read me” sheet that defines each column and each filter. `
+    +`The same five workbooks are emailed to the KYC, Debtors, Data Analytics, Finance and Accounts teams every Monday at midnight.`
+    +(x.canDownload?'':' <b style="color:#ffe08a">You can see the menu but not download — that needs the Finance, Compliance, Underwriting or Claims permission.</b>');
+  $('xGrid').innerHTML=(x.datasets||[]).map(d=>`<div class="xcard">`
+    +`<h4>${esc(d.label)}</h4><p>${esc(d.plain)}</p>`
+    +`<div class="acts">`
+    +`<button class="btn accent" data-ds="${esc(d.key)}" data-fmt="xlsx"${x.canDownload?'':' disabled style="opacity:.45;cursor:not-allowed"'}>Excel</button>`
+    +`<button class="btn" data-ds="${esc(d.key)}" data-fmt="csv"${x.canDownload?'':' disabled style="opacity:.45;cursor:not-allowed"'}>CSV</button>`
+    +`</div></div>`).join('');
+  $('xGrid').querySelectorAll('button[data-ds]').forEach(b=>{
+    if(!b.disabled) b.onclick=()=>download(b.dataset.ds,b.dataset.fmt,b);});
+}
+
+/* ── help ────────────────────────────────────────────────────────────── */
+function renderHelp(){
+  const g=S.gloss;
+  if(!g){$('faq').innerHTML='<div class="note warn">The definitions could not be loaded, so this page is showing numbers it cannot explain. Tell IT.</div>';return;}
+  $('faq').innerHTML=(g.faq||[]).map(f=>`<details><summary>${esc(f.q)}</summary><p>${esc(f.a)}</p></details>`).join('');
+  $('glossRows').innerHTML=Object.entries(g.metrics||{}).map(([id,m])=>
+    `<tr><td><button class="btn" style="text-transform:none;letter-spacing:0;font-size:12.5px" data-metric="${esc(id)}">${esc(m.label)}</button></td>`
+    +`<td>${esc(m.means)}</td></tr>`).join('');
+  $('glossRows').querySelectorAll('[data-metric]').forEach(b=>{b.onclick=()=>openDef(b.dataset.metric);});
+}
+
+/* ── boot ────────────────────────────────────────────────────────────── */
+(async function(){
+  if(!TOKEN){notice('Sign in to Graphite, then open Alpha Brain again from the menu.');return;}
+
+  /* 1) Definitions FIRST. The page will not print a number it cannot explain. */
+  try{const r=await authFetch('/brain/glossary'); if(r.ok) S.gloss=await r.json();}catch(e){}
+
+  /* 2) Counts — open to every employee. Drives the headline and the tiles. */
+  try{
+    const r=await authFetch('/brain/summary');
+    if(r.status===401){notice('Your Graphite session has expired. Sign in again, then reopen Alpha Brain.');return;}
+    if(r.status===503){notice('Alpha Brain is not switched on in this environment yet.');return;}
+    if(!r.ok){notice('Alpha Brain is unavailable right now (HTTP '+r.status+').');return;}
+    S.sum=await r.json();
+  }catch(e){notice('Alpha Brain cannot be reached right now.');return;}
+
+  if(!S.gloss){
+    /* Honest degrade: show the numbers, but say the explanations are missing. */
+    $('overviewNotes').innerHTML='<div class="note warn"><b>The plain-English definitions could not be loaded.</b> '
+      +'The figures below are real but unexplained — do not quote them until this is fixed.</div>';
+    S.gloss={metrics:{},faq:[]};
+  }
+  renderLede(); renderTiles(); renderBreakdown(); renderHelp();
+  const pill=$('pill');
+  if(S.sum.liveArms){pill.innerHTML='<span class="dot"></span>Arms LIVE';pill.style.color='#ff5570';
+    pill.style.borderColor='rgba(255,85,112,.45)';const d=pill.querySelector('.dot');if(d)d.style.background='#ff5570';}
+
+  /* 3) Healthcare, features, extract menu — all counts/definitions, run together. */
+  const [hc,ft,xt]=await Promise.all([
+    authFetch('/brain/healthcare').then(r=>r.ok?r.json():null).catch(()=>null),
+    authFetch('/brain/features').then(r=>r.ok?r.json():null).catch(()=>null),
+    authFetch('/brain/extract?list=1').then(r=>r.ok?r.json():null).catch(()=>null),
+  ]);
+  S.healthcare=hc; S.features=ft; S.extract=xt;
+  renderHealthcare(); renderFeatures(); renderExtract();
+  renderTiles(); wireTiles($('tiles'));   // healthcare tile appears once its counts land
+
+  /* 4) The customer-level list — restricted. A 403 is a normal outcome, not an error. */
+  try{
+    const r=await authFetch('/brain/queue');
+    if(r.status===403){S.restricted=true;}
+    else if(r.ok){S.queue=await r.json();}
+    else{S.restricted=true;}
+  }catch(e){S.restricted=true;}
+  renderQueue(); renderBreakdown();
+  showTab('overview');
+})();
+
+/* ═══ the 3D brain (decoration only — never carries a number) ══════════ */
+(function(){
+  if(!window.THREE){
+    document.getElementById('brain').style.display='none';
+    const h=document.querySelector('.hint'); if(h)h.style.display='none'; // no canvas → no "drag to rotate"
+    return;
+  }
+  const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  const canvas=document.getElementById('brain');
+  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  const scene=new THREE.Scene(); scene.fog=new THREE.FogExp2(0x03030f,0.055);
+  const camera=new THREE.PerspectiveCamera(42,1,0.1,100); camera.position.set(0,0.2,6.2);
+  const group=new THREE.Group(); group.position.y=0.55; scene.add(group);
+
+  function glowTex(){const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d');
+    const gr=g.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,'rgba(255,255,255,1)');
+    gr.addColorStop(.25,'rgba(255,255,255,.9)');gr.addColorStop(.55,'rgba(255,255,255,.30)');gr.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=gr;g.fillRect(0,0,64,64);return new THREE.CanvasTexture(c);}
+  const SPRITE=glowTex();
+  function gyri(x,y,z,f){
+    const wx=x*f+0.9*Math.sin(y*f*0.6), wy=y*f+0.9*Math.sin(z*f*0.6), wz=z*f+0.9*Math.sin(x*f*0.6);
+    let n=(Math.sin(wx)+Math.sin(wy+2.1)+Math.sin(wz+4.2)+0.6*Math.sin(wx*1.9-wz*1.3))/3.2;
+    return 1-Math.abs(n);
+  }
+  const pos=[],col=[],siz=[];
+  const S3=1.9;
+  function foldColor(g){
+    if(g>0.72){ return Math.random()<0.28?[1.0,0.55,0.12]:[0.55,0.95,1.0]; }
+    if(g>0.5){  return [0.28,0.62,0.95]; }
+    if(g>0.34){ return [0.32,0.42,0.85]; }
+    return [0.10,0.15,0.42];
+  }
+  function addSurface(count,cx,cy,cz,rx,ry,rz,ff,fa,fissure){
+    for(let i=0;i<count;i++){
+      const u=Math.random()*Math.PI*2, v=Math.acos(2*Math.random()-1);
+      let bx=Math.sin(v)*Math.cos(u), by=Math.cos(v), bz=Math.sin(v)*Math.sin(u);
+      const g=gyri(bx,by,bz,ff);
+      const disp=1+fa*(g-0.5);
+      let px=(bx*rx)*disp+cx, py=(by*ry)*disp+cy, pz=(bz*rz)*disp+cz;
+      if(fissure && Math.abs(px)<0.07 && py>cy+0.12){ py-=0.14; }
+      pos.push(px*S3,py*S3,pz*S3);
+      const c=foldColor(g); const b=0.5+0.5*g;
+      col.push(c[0]*b,c[1]*b,c[2]*b);
+      siz.push(g>0.72?0.075:0.05);
+    }
+  }
+  const big=reduce?0.55:1;
+  addSurface(Math.round(4200*big),  0.44,0.12,0.0, 0.52,0.74,1.16, 5.2,0.16,true);
+  addSurface(Math.round(4200*big), -0.44,0.12,0.0, 0.52,0.74,1.16, 5.2,0.16,true);
+  addSurface(Math.round(1700*big),  0.0,-0.52,-0.72, 0.5,0.34,0.5, 11,0.1,false);
+  for(let i=0;i<Math.round(220*big);i++){const h=Math.random();
+    pos.push((Math.random()-0.5)*0.13*S3,(-0.62-h*0.5)*S3,(-0.5+(Math.random()-0.5)*0.13)*S3);
+    col.push(0.32,0.42,0.85); siz.push(0.05);}
+  const N=pos.length/3;
+  const posA=new Float32Array(pos), colA=new Float32Array(col);
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(posA,3));
+  geo.setAttribute('color',new THREE.BufferAttribute(colA,3));
+  group.add(new THREE.Points(geo,new THREE.PointsMaterial({size:0.052,map:SPRITE,vertexColors:true,
+    transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true,opacity:0.95})));
+
+  const P=[]; for(let i=0;i<N;i++)P.push([posA[i*3],posA[i*3+1],posA[i*3+2]]);
+  const conns=[],linePos=[]; const MAXC=reduce?400:900;
+  for(let k=0;k<MAXC;k++){const a=(Math.random()*N)|0;let b=-1,bd=1e9;
+    for(let t=0;t<8;t++){const c=(Math.random()*N)|0;if(c===a)continue;
+      const dx=P[a][0]-P[c][0],dy=P[a][1]-P[c][1],dz=P[a][2]-P[c][2];const d=dx*dx+dy*dy+dz*dz;
+      if(d<bd&&d>0.004){bd=d;b=c;}}
+    if(b<0||bd>0.24)continue; conns.push([a,b]);
+    linePos.push(P[a][0],P[a][1],P[a][2],P[b][0],P[b][1],P[b][2]);}
+  const lgeo=new THREE.BufferGeometry();lgeo.setAttribute('position',new THREE.Float32BufferAttribute(linePos,3));
+  group.add(new THREE.LineSegments(lgeo,new THREE.LineBasicMaterial({color:0x4a74e0,transparent:true,opacity:0.12,blending:THREE.AdditiveBlending,depthWrite:false})));
+
+  const NS=reduce?60:Math.min(240,conns.length);
+  const sPos=new Float32Array(NS*3),sCol=new Float32Array(NS*3),sig=[];
+  for(let i=0;i<NS;i++){const c=conns[(Math.random()*conns.length)|0];
+    sig.push({a:c[0],b:c[1],t:Math.random(),sp:0.006+Math.random()*0.02});
+    const cc=Math.random()<0.5?[1,0.72,0.2]:[0.45,0.92,1];sCol[i*3]=cc[0];sCol[i*3+1]=cc[1];sCol[i*3+2]=cc[2];}
+  const sgeo=new THREE.BufferGeometry();
+  sgeo.setAttribute('position',new THREE.BufferAttribute(sPos,3));
+  sgeo.setAttribute('color',new THREE.BufferAttribute(sCol,3));
+  group.add(new THREE.Points(sgeo,new THREE.PointsMaterial({size:0.16,map:SPRITE,vertexColors:true,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true})));
+
+  let ry=0,rx=0,tgtRy=0,tgtRx=0,drag=false,touched=false,pxx=0,pyy=0,dist=6.2;
+  canvas.addEventListener('pointerdown',e=>{drag=true;touched=true;pxx=e.clientX;pyy=e.clientY;});
+  addEventListener('pointerup',()=>drag=false);
+  addEventListener('pointermove',e=>{if(!drag)return;tgtRy+=(e.clientX-pxx)*0.005;tgtRx+=(e.clientY-pyy)*0.004;tgtRx=Math.max(-0.5,Math.min(0.5,tgtRx));pxx=e.clientX;pyy=e.clientY;});
+  /* The canvas is fixed full-screen behind a 1220px content column, so on a wide
+     screen it is exposed down both edges — where people rest the cursor. Grabbing
+     the wheel there silently refused to scroll the page and zoomed the brain
+     instead. Only zoom once the reader has actually grabbed the brain. */
+  canvas.addEventListener('wheel',e=>{
+    if(!touched)return;                 // never steal a plain page scroll
+    e.preventDefault();
+    dist=Math.max(4,Math.min(10,dist+e.deltaY*0.002));
+  },{passive:false});
+  function resize(){renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}
+  addEventListener('resize',resize);resize();
+  const sp=sgeo.attributes.position.array;
+  /* Reduced motion: ONE static render, then stop. Trimming the particle count was
+     not enough — the travelling signal points kept moving every frame, and that
+     is the part that affects a vestibular-sensitive reader.
+     (requestAnimationFrame already throttles itself in a background tab; an
+     explicit document.hidden guard here rendered NOTHING when the page loaded
+     while hidden, leaving a black canvas. Don't add it back.) */
+  if(reduce){renderer.render(scene,camera);return;}
+  function frame(){
+    requestAnimationFrame(frame);
+    tgtRy+=0.0015; ry+=(tgtRy-ry)*0.06; rx+=(tgtRx-rx)*0.06;
+    group.rotation.y=ry; group.rotation.x=rx+0.05*Math.sin(ry*0.5);
+    camera.position.z+=(dist-camera.position.z)*0.08;
+    for(let i=0;i<NS;i++){const s=sig[i];s.t+=s.sp;if(s.t>=1){const c=conns[(Math.random()*conns.length)|0];s.a=c[0];s.b=c[1];s.t=0;s.sp=0.006+Math.random()*0.02;}
+      const a=P[s.a],b=P[s.b],t=s.t;sp[i*3]=a[0]+(b[0]-a[0])*t;sp[i*3+1]=a[1]+(b[1]-a[1])*t;sp[i*3+2]=a[2]+(b[2]-a[2])*t;}
+    sgeo.attributes.position.needsUpdate=true; renderer.render(scene,camera);}
+  frame();
+})();
+</script>
+</body>
+</html>

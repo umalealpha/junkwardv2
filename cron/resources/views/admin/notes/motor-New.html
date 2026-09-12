@@ -1,0 +1,416 @@
+<!doctype html >
+<html>
+
+<head>
+    <TITLE>Motor</TITLE>
+    <link rel="icon" href="images/favicon.ico" type="image/x-icon">
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,200;0,300;0,400;0,500;0,600;0,700;1,200;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
+    <style>
+        html {
+            /* font-size: 18px; */
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 500;
+            -webkit-text-size-adjust: 100%!important;
+            -ms-text-size-adjust: 100%!important;
+        }
+        
+        body {
+            /* font-size: 18px; */
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 500;
+            -webkit-print-color-adjust: exact !important;
+        }
+        
+        .container {
+            padding-right: 15px;
+            padding-left: 15px;
+            margin-right: auto;
+            margin-left: auto;
+        }
+        
+        @media (min-width: 768px) {
+            .container {
+                width: 750px;
+            }
+        }
+        
+        @media (min-width: 900px) {
+            .container {
+                width: 870px;
+            }
+        }
+        
+        .clearfix:after,
+        .clearfix:before {
+            display: table;
+            content: " ";
+        }
+        
+        .clearfix:after {
+            clear: both;
+        }
+        
+        b,
+        strong {
+            font-weight: 700;
+        }
+        
+        small {
+            font-size: 80%;
+        }
+        
+        hr {
+            margin: 20px 0px;
+            border: 0;
+            height: 0;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .table-responsive {
+            min-height: 0.01%;
+            overflow-x: auto;
+        }
+        
+        table {
+            border-spacing: 0;
+            border-collapse: collapse;
+        }
+        
+        table,
+        th,
+        td {
+            border: 0px solid #000000;
+        }
+        
+        td,
+        th {
+            padding: 10px 10px;
+        }
+        
+        .collapse {
+            display: none;
+        }
+        
+        p {
+            margin: 0px;
+        }
+        /* ============================= */
+        /* ============================= */
+        
+        @media print {
+            body {
+                font-size: 14px;
+                -webkit-text-size-adjust: 100%!important;
+                -ms-text-size-adjust: 100%!important;
+                -webkit-print-color-adjust: exact !important;
+            }
+            *,
+             :after,
+             :before {
+                color: #000 !important;
+            }
+            tr {
+                page-break-inside: avoid;
+            }
+            img {
+                max-width: 100% !important;
+            }
+            .table {
+                border-collapse: collapse !important;
+            }
+            .table-bordered td,
+            .table-bordered th {
+                border: 1px solid #ddd !important;
+            }
+            .table-responsive {
+                width: auto;
+            }
+            p {
+                margin: 0px;
+            }
+            h3 {
+                color: #383884 !important;
+            }
+            a {
+                color: #383884 !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div style="margin-bottom: 0px;max-width: 900px; margin: auto; position: relative;">
+        <div style="position: absolute; top:0;left:0;">
+            <img src="./top-corner.png" alt="" style="z-index: -1;">
+        </div>
+        <div class="container clearfix" style="position: relative; padding: 40px 0px;">
+            <div class="inner-container clearfix" style="z-index: 11; max-width:650px;margin: auto; ">
+                <div style="margin-bottom: 0px;text-align: center;">
+                    <img src="./logo.png" alt="logo" width="230px">
+                </div>
+                <div>
+                    <p style="margin-bottom:30px;text-align: center;"> Digital Policy Cancellation Notice </p>
+                </div>
+                <table class="table-responsive" style="border-collapse: collapse;width:100%">
+                    <tr>
+                        <td>
+                            <p style="margin: 0px;margin-bottom:0px;">2021/03/01</p>
+                            <h4 style="margin: 0px;margin-bottom:0px;">[BANK NAME]</h4>
+                            <p style="margin: 0px;margin-bottom:0px;">[BANK ADDRESS</p>
+                            <p style="margin: 0px;margin-bottom:0px;">[BANK CITY], [BANK COUNTRY]</p>
+                        </td>
+                    </tr>
+                </table>
+                <table class="table-responsive" style="border-collapse: collapse;width:100%">
+                    <tr>
+                        <td>
+                            <p style="margin: 0px;margin-bottom:0px;"> Dear Sir/Madam </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <h3 style="margin-top: 6px;margin-bottom: 10px; color: #383884;-webkit-print-color-adjust: exact;"> 1. Product info</h3>
+                            <div class="float-container" style="border: 2px solid #eeeefd; background-color: #f9f9f9;-webkit-print-color-adjust: exact;padding: 15px; border-radius: 20px; padding: 10px; display: grid;grid-template-columns: 1fr 1fr; grid-gap: 0px 10px;">
+                                <div class="float-child" style="padding: 10px;">
+                                    <p style="margin-bottom: 6px; margin: 0px;"><span style="font-weight: 600;">Plan : </span> Motor Comprehensive</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <p style="margin-bottom: 6px; margin: 0px;"><span style="font-weight: 600;">Premium : </span> </span>P <span style="font-size: 10px;">(Including VAT)</span></p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <p style="margin-bottom: 6px; margin: 0px;"><span style="font-weight: 600;">Frequency : </span> Monthly</p>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <h3 style="margin-top: 6px;margin-bottom: 10px; color: #383884;-webkit-print-color-adjust: exact;"> 2. Customer Info</h3>
+                            <div class="float-container" style="border: 2px solid #eeeefd; background-color: #f9f9f9;-webkit-print-color-adjust: exact;padding: 15px; border-radius: 20px; padding: 10px; display: grid;grid-template-columns: 1fr 1fr; grid-gap: 0px 10px;">
+                                <div class="float-child" style="padding: 10px">
+                                    <p style="margin-bottom: 6px; margin: 0px;"><span style="font-weight: 600;">First Name : </span> abc</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px">
+                                    <p style="margin-bottom: 6px; margin: 0px;"><span style="font-weight: 600;">Last Name : </span> xyz</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px">
+                                    <p style="margin-bottom: 6px; margin: 0px;"><span style="font-weight: 600;">Omang : </span> 101010100</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px">
+                                    <p style="margin-bottom: 6px; margin: 0px;"><span style="font-weight: 600;">Gender : </span> Male</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px">
+                                    <p style="margin-bottom: 6px; margin: 0px;"><span style="font-weight: 600;">Mobile Number : </span> Male</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px">
+                                    <p style="margin-bottom: 6px; margin: 0px;"><span style="font-weight: 600;">Email : </span> abc@gmail.com</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px">
+                                    <p style="margin-bottom: 6px; margin: 0px;"><span style="font-weight: 600;">Dagte Of Birth : </span> 01/03/2021</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px">
+                                    <p style="margin-bottom: 6px; margin: 0px;"><span style="font-weight: 600;">Omang Expiry date : </span> 01/03/2021</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px">
+                                    <p style="margin-bottom: 6px; margin: 0px;"><span style="font-weight: 600;">Marital Status : </span> Single</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px">
+                                    <p style="margin-bottom: 6px; margin: 0px;"><span style="font-weight: 600;">Physical Address : </span> xyz f fsfsffs fsfsfsfs fsdf</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px">
+                                    <p style="margin-bottom: 6px; margin: 0px;"><span style="font-weight: 600;">State District: </span> abc</p>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <h3 style="margin-top: 6px;margin-bottom: 10px; color: #383884;-webkit-print-color-adjust: exact;"> 3. Beneficiary info</h3>
+                            <div class="float-container" style="border: 2px solid #eeeefd; background-color: #f9f9f9;-webkit-print-color-adjust: exact;padding: 15px; border-radius: 20px; padding: 10px; display: grid;grid-template-columns: 1fr 1fr; grid-gap: 0px 10px;">
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Realtion</h4>
+                                    <p>xyz</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">First Nmae</h4>
+                                    <p>xyz</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Last Name</h4>
+                                    <p>xyz</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Gender </h4>
+                                    <p>xyz</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Date of Birth</h4>
+                                    <p>xyz</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Omang</h4>
+                                    <p>xyz</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Passport</h4>
+                                    <p>xyz</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">How much Beneficiary payment? (%)</h4>
+                                    <p>xyz</p>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <h3 style="margin-top: 6px;margin-bottom: 10px; color: #383884;-webkit-print-color-adjust: exact;"> 4. vehicle info</h3>
+                            <div class="float-container" style="border: 2px solid #eeeefd; background-color: #f9f9f9;-webkit-print-color-adjust: exact;padding: 15px; border-radius: 20px; padding: 10px; display: grid;grid-template-columns: 1fr 1fr; grid-gap: 0px 10px;">
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Is your car imported from Japan?</h4>
+                                    <p>Yes</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Vehical Make</h4>
+                                    <p>ALA</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Manufacturing Year</h4>
+                                    <p>xyz</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Vehical Modal</h4>
+                                    <p>xyz</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Estimated Vlue of Vehical</h4>
+                                    <p>150000</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Number of Prior Accidents</h4>
+                                    <p>1</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Vehical Registration Number</h4>
+                                    <p>1234567</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Doy you want to upload vehical pre-inspection image</h4>
+                                    <p>xyz</p>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <h3 style="margin-top: 6px;margin-bottom: 10px; color: #383884;-webkit-print-color-adjust: exact;"> 6. Veichle images</h3>
+                            <div class="float-container" style="border: 2px solid #eeeefd; background-color: #f9f9f9;-webkit-print-color-adjust: exact;padding: 15px; border-radius: 20px; padding: 10px; display: grid;grid-template-columns: 1fr 1fr; grid-gap: 0px 10px;">
+                                <div class="float-child" style="padding: 10px;">
+                                    <div><img src="./vahical-2.jpeg" alt="" style="max-width: 200px; height: auto; border-radius: 12px;"></div>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <div><img src="./vahical-2.jpeg" alt="" style="max-width: 200px; height: auto;border-radius: 12px;"></div>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <div style="max-width: 200px; height: auto;"><img src="./vehical.PNG" alt="" style="max-width: 200px; height: auto;border-radius: 12px;"></div>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <div><img src="./vahical-2.jpeg" alt="" style="max-width: 200px; height: auto;border-radius: 12px;"></div>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <div><img src="./vahical-2.jpeg" alt="" style="max-width: 200px; height: auto;border-radius: 12px;"></div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <h3 style="margin-top: 6px;margin-bottom: 10px; color: #383884;-webkit-print-color-adjust: exact;"> 6. Customer banking and billing info</h3>
+                            <div class="float-container" style="border: 2px solid #eeeefd; background-color: #f9f9f9;-webkit-print-color-adjust: exact;padding: 15px; border-radius: 20px; padding: 10px; display: grid;grid-template-columns: 1fr 1fr; grid-gap: 0px 10px;">
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">What day of every month do you wish to be debited on?</h4>
+                                    <p>select day</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Please Selcgts Payment Method</h4>
+                                    <p>xyz</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Select Bank</h4>
+                                    <p>xyz</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Select Branch</h4>
+                                    <p>xyz</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Account Number</h4>
+                                    <p>xyz</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Confirm Account Number</h4>
+                                    <p>xyz</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Account Type</h4>
+                                    <p>xyz</p>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <h4 style="margin-top: 0px;margin-bottom: 4px;">Financial Interest</h4>
+                                    <p>xyz</p>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <!-- <tr>
+                        <td>
+                            <h3 style="margin-top: 6px;margin-bottom: 10px; color: #383884;-webkit-print-color-adjust: exact;">6. Customer banking and billing info</h3>
+                            <div class="float-container" style=" display: grid;grid-template-columns: 1fr 1fr; grid-gap: 0px 10px;">
+                                <div class="float-child" style="padding: 10px;">
+                                    <div class="green">Float Column 1</div>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <div class="green">Float Column 1</div>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <div class="green">Float Column 1</div>
+                                </div>
+                                <div class="float-child" style="padding: 10px;">
+                                    <div class="green">Float Column 1</div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr> -->
+                    <tr>
+                        <td>
+                            <p>Kindly render any assistance they may need and do not hesitate to contact the undersigned for any enquiries, clarifications and amendments.</p>
+                        </td>
+                    </tr>
+                </table>
+                <table class="table-responsive" style="border-collapse: collapse;width:100%">
+                    <tr>
+                        <td>
+                            <p style="margin-bottom: 0px; margin-top: 0px;">Yours Sincerely,</p>
+                            <p style="margin-bottom: 6px; margin-top: 0px;">For <span style="font-weight: 600;">Alpha Direct Insurance Company</span></p>
+                            <div class="clearfix">
+                                <p style="font-size: 14px;">System Generated(+267 392-2718)</p>
+                                <h5 style="margin: 0px;">Digital Policy UnderwritingUnit - Alpha Direct</h5>
+                                <a href="#" style="font-style: italic; font-size: 14px;font-weight: 500;">underwriting@alphadirect.co.bw</a>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+                <div style="margin-top: 20px;">
+                    <p style="margin-bottom: 100px"></p>
+                </div>
+            </div>
+            <div style="position: absolute; bottom:0;right:0;z-index: -1;">
+                <img src="./bottom-corner.png" alt="" style="z-index: -1;">
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

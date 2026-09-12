@@ -1,0 +1,711 @@
+<title>Reinsurance Progress to Date</title>
+
+<style>
+  :root {
+    --navy:        #0D1B2A;
+    --orange:      #F4A623;
+    --ground:      #F5F7F9;
+    --surface:     #FFFFFF;
+    --ink:         #0D1B2A;
+    --ink-body:    #37424E;
+    --ink-muted:   #6B7785;
+    --rule:        #DCE2E8;
+    --rule-soft:   #E9EDF1;
+    --done:        #1E7A5A;
+    --done-bg:     #E4F1EB;
+    --open:        #9A6A05;
+    --open-bg:     #FBEFD6;
+    --block:       #A8322D;
+    --block-bg:    #F7E3E1;
+    --spine:       #C9D2DB;
+    --masthead-rule: #0D1B2A;
+
+    --serif: "Book Antiqua", Palatino, "Palatino Linotype", "URW Palladio L", Georgia, "Times New Roman", serif;
+    --sans:  "Segoe UI", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+
+    --measure: 68ch;
+    --pad: clamp(1.25rem, 4vw, 3.5rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:    #0D1B2A;
+      --surface:   #142639;
+      --ink:       #EDF1F5;
+      --ink-body:  #C6D0DA;
+      --ink-muted: #8D9CAC;
+      --rule:      #2A3D53;
+      --rule-soft: #1E3149;
+      --done:      #5FBE9B;
+      --done-bg:   #123528;
+      --open:      #F0B44A;
+      --open-bg:   #3A2C0E;
+      --block:     #E58279;
+      --block-bg:  #3D1F1C;
+      --spine:     #2F4359;
+      --masthead-rule: #2A3D53;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:    #0D1B2A;
+    --surface:   #142639;
+    --ink:       #EDF1F5;
+    --ink-body:  #C6D0DA;
+    --ink-muted: #8D9CAC;
+    --rule:      #2A3D53;
+    --rule-soft: #1E3149;
+    --done:      #5FBE9B;
+    --done-bg:   #123528;
+    --open:      #F0B44A;
+    --open-bg:   #3A2C0E;
+    --block:     #E58279;
+    --block-bg:  #3D1F1C;
+    --spine:     #2F4359;
+    --masthead-rule: #2A3D53;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink-body);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.65;
+    margin: 0;
+    padding: 0 var(--pad) 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 60rem;
+    margin: 0 auto;
+  }
+
+  /* ---------- masthead ---------- */
+
+  .masthead {
+    border-bottom: 2px solid var(--masthead-rule);
+    padding: 3.5rem 0 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+  .doc-ref {
+    font-family: var(--sans);
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.25rem;
+  }
+  .doc-ref .mark { color: var(--orange); font-weight: 600; }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(2rem, 5.5vw, 3.1rem);
+    line-height: 1.1;
+    font-weight: 400;
+    color: var(--ink);
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    font-size: 1.08rem;
+    color: var(--ink-body);
+    max-width: var(--measure);
+    margin: 0;
+  }
+
+  .meta {
+    font-family: var(--sans);
+    font-size: 0.82rem;
+    color: var(--ink-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 2rem;
+    padding-top: 0.4rem;
+  }
+  .meta b { color: var(--ink-body); font-weight: 600; }
+
+  /* ---------- tiles ---------- */
+
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin: 2.5rem 0 0;
+  }
+  .tile {
+    background: var(--surface);
+    padding: 1.25rem 1.2rem 1.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .tile .n {
+    font-family: var(--sans);
+    font-size: 2rem;
+    font-weight: 300;
+    line-height: 1;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .tile .n.warn { color: var(--orange); }
+  .tile .l {
+    font-family: var(--sans);
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    color: var(--ink-muted);
+    line-height: 1.4;
+  }
+
+  /* ---------- sections ---------- */
+
+  section { padding-top: 3.5rem; }
+
+  h2 {
+    font-family: var(--serif);
+    font-size: clamp(1.4rem, 3.2vw, 1.85rem);
+    font-weight: 400;
+    color: var(--ink);
+    margin: 0 0 0.35rem;
+    line-height: 1.2;
+    text-wrap: balance;
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+  h2 .num {
+    font-family: var(--sans);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--orange);
+    flex: none;
+    transform: translateY(-0.15em);
+  }
+
+  h3 {
+    font-family: var(--sans);
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin: 2.25rem 0 0.9rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .lede {
+    max-width: var(--measure);
+    margin: 0 0 1.5rem;
+    color: var(--ink-body);
+  }
+
+  p { max-width: var(--measure); }
+
+  ul.points {
+    max-width: var(--measure);
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  ul.points li {
+    padding-left: 1.15rem;
+    position: relative;
+  }
+  ul.points li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.66em;
+    width: 5px;
+    height: 5px;
+    background: var(--orange);
+  }
+
+  /* ---------- timeline ---------- */
+
+  .timeline {
+    display: flex;
+    flex-direction: column;
+    border-left: 2px solid var(--spine);
+    padding-left: 0;
+    margin: 0;
+  }
+  .entry {
+    display: grid;
+    grid-template-columns: 7.5rem 1fr;
+    gap: 0 1.5rem;
+    padding: 0.85rem 0 0.85rem 1.5rem;
+    border-bottom: 1px solid var(--rule-soft);
+    position: relative;
+  }
+  .entry:last-child { border-bottom: 0; }
+  .entry::before {
+    content: "";
+    position: absolute;
+    left: -5px;
+    top: 1.3rem;
+    width: 8px;
+    height: 8px;
+    background: var(--orange);
+    border: 2px solid var(--ground);
+  }
+  .entry .day {
+    font-family: var(--sans);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--ink);
+    line-height: 1.5;
+    padding-top: 0.15rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .entry .day span {
+    display: block;
+    font-weight: 400;
+    color: var(--ink-muted);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+  }
+  .entry .what { margin: 0; max-width: 46rem; }
+  .entry .what em {
+    font-style: normal;
+    font-family: var(--sans);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    display: block;
+    margin-top: 0.3rem;
+  }
+
+  @media (max-width: 34rem) {
+    .entry { grid-template-columns: 1fr; gap: 0.35rem; }
+    .entry .day span { display: inline; margin-left: 0.5rem; }
+  }
+
+  /* ---------- tables ---------- */
+
+  .scroll { overflow-x: auto; margin: 0 0 1.25rem; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.94rem;
+    min-width: 34rem;
+  }
+  thead th {
+    font-family: var(--sans);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    text-align: left;
+    padding: 0 0.9rem 0.6rem 0;
+    border-bottom: 2px solid var(--rule);
+    vertical-align: bottom;
+  }
+  tbody td {
+    padding: 0.75rem 0.9rem 0.75rem 0;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+    color: var(--ink-body);
+  }
+  tbody tr:last-child td { border-bottom: 1px solid var(--rule); }
+  td.who, td.when {
+    font-family: var(--sans);
+    font-size: 0.84rem;
+    color: var(--ink);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  td strong { color: var(--ink); font-weight: 600; }
+
+  .pill {
+    display: inline-block;
+    font-family: var(--sans);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.55rem;
+    white-space: nowrap;
+  }
+  .pill.done  { background: var(--done-bg);  color: var(--done); }
+  .pill.open  { background: var(--open-bg);  color: var(--open); }
+  .pill.block { background: var(--block-bg); color: var(--block); }
+
+  /* ---------- callout ---------- */
+
+  .callout {
+    background: var(--surface);
+    border-left: 3px solid var(--orange);
+    padding: 1.25rem 1.4rem;
+    margin: 1.75rem 0;
+    max-width: var(--measure);
+  }
+  .callout p { margin: 0; }
+  .callout p + p { margin-top: 0.7rem; }
+  .callout .hd {
+    font-family: var(--sans);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--orange);
+    margin-bottom: 0.5rem;
+  }
+
+  /* ---------- recommendations ---------- */
+
+  .recs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+  .rec {
+    background: var(--surface);
+    padding: 1.4rem 1.35rem 1.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .rec .k {
+    font-family: var(--sans);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--orange);
+  }
+  .rec .t {
+    font-size: 1.08rem;
+    color: var(--ink);
+    line-height: 1.3;
+  }
+  .rec p { font-size: 0.92rem; margin: 0; }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+    font-family: var(--sans);
+    font-size: 0.8rem;
+    color: var(--ink-muted);
+  }
+  footer p { max-width: var(--measure); margin: 0 0 0.4rem; }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="doc-ref">
+      <span class="mark">RI-14</span>
+      <span>Alpha Direct Insurance Company (Pty) Ltd</span>
+      <span>Gaborone</span>
+    </div>
+    <h1>Reinsurance — what is built, and what is in our hands</h1>
+    <p class="standfirst">A plain record of the reinsurance work: what was delivered on each day, what is configured and live today, the six items still in our hands to finish, and the larger build that has not been started.</p>
+    <div class="meta">
+      <span><b>Prepared for</b> CFO and the Reinsurance team</span>
+      <span><b>Date</b> 3 September 2026</span>
+      <span><b>Covers</b> April 2026 to date</span>
+      <span><b>Companion</b> RI-13, for the timeline and the open asks</span>
+      <span><b>Treaty year</b> 1 Jul 2026 – 30 Jun 2027</span>
+    </div>
+  </header>
+
+  <div class="tiles">
+    <div class="tile">
+      <div class="n">98</div>
+      <div class="l">Changes delivered on the 2026/27 treaty year</div>
+    </div>
+    <div class="tile">
+      <div class="n">29</div>
+      <div class="l">Working days on it, 27 Jul to 3 Sep</div>
+    </div>
+    <div class="tile">
+      <div class="n warn">3</div>
+      <div class="l">Open items that are ours to finish</div>
+    </div>
+    <div class="tile">
+      <div class="n">2</div>
+      <div class="l">Treaties configured and in force</div>
+    </div>
+    <div class="tile">
+      <div class="n">13 Nov</div>
+      <div class="l">First statement of account must be issued</div>
+    </div>
+  </div>
+
+  <section>
+    <h2><span class="num">01</span> The short version</h2>
+    <ul class="points">
+      <li><strong>The 2026/27 treaty year is configured and live.</strong> Both treaties are in &mdash; General Quota Share and Motor Quota Share, 1 July 2026 to 30 June 2027 &mdash; with their layers attached and the regulatory mapping seeded and written to the database.</li>
+      <li><strong>The cession now reconciles to Reinsurance&rsquo;s own workbook, to the cent.</strong> The test policy totals 687,704,212 against their 687,704,212, group by group. That took rebuilding the read: the figures come from the table the treaty actually cedes from, not from the coverage rows, which never carried motor at all.</li>
+      <li><strong>Their own test cases found two faults in our engine, and we fixed both.</strong> Fourteen of their eighteen now reproduce exactly; the other four are the basis they themselves superseded on 24 August, and our figures follow the later one. All eighteen are re-performed on every build, so their Control C3 is discharged by running the suite rather than by remembering to.</li>
+      <li><strong>The FAC register is built and handed over for testing.</strong> Every item Reinsurance reported has been closed, and so have the four faults we found ourselves.</li>
+      <li><strong>The quarterly statement of account has not been started.</strong> That is the piece with a contractual deadline &mdash; 13 November 2026 &mdash; and it is the whole of the remaining risk. Everything else open is finishing work.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="num">02</span> Day by day — what was delivered</h2>
+    <p class="lede">Two stages. The first built the module. The second, from 27 July, is the 2026/27 treaty year and is recorded day by day.</p>
+
+    <h3>Stage one — building the module, April to June</h3>
+    <div class="timeline">
+      <div class="entry">
+        <div class="day">Apr 4 – 23<span>3 weeks</span></div>
+        <p class="what">Reinsurance masters built — types, treaties, formulas, coverage groups, reinsurers. Reinsurance tab added to the policy. Treaty rollover, recalculation, and background compute for large policies.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Apr 28<span>1 day</span></div>
+        <p class="what">Cession now calculates on every policy action, not only on new business.</p>
+      </div>
+      <div class="entry">
+        <div class="day">May 18 – 21<span>4 days</span></div>
+        <p class="what">Treaty and formula screens brought to old-project parity. Calculation query corrected, and guards added so a zero sum insured no longer breaks the run.</p>
+      </div>
+      <div class="entry">
+        <div class="day">May 27 – 28<span>2 days</span></div>
+        <p class="what">Recalculation moved to the background so it stops timing out. Formula detail fields added.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Jun 3<span>1 day</span></div>
+        <p class="what">Fidelity Guarantee cession fixed end to end — it was not ceding at all.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Jun 8 – 10<span>3 days</span></div>
+        <p class="what">Coverage group edit shows the full coverage tree, the way the old system did.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Jun 18<span>1 day</span></div>
+        <p class="what">Independent computation engine, treaty schema and written SOP delivered. Verified 17 out of 17 against the reference calculation.</p>
+      </div>
+    </div>
+
+    <h3>Stage two — the 2026/27 treaty year, 27 July to 1 September</h3>
+    <div class="timeline">
+      <div class="entry">
+        <div class="day">Mon 27 Jul<span>8 changes</span></div>
+        <p class="what">Motor Traders sum insured and premium were doubling when External and Internal were both present, and zeroing when a sub-value was blank. Both fixed. Stated Benefits now uses annual wages, not headcount. Coverage group save and update corrected.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Tue 28 Jul<span>1 change</span></div>
+        <p class="what">Group tables given proper keys, and motor groups matched by code instead of by name.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Wed 29 Jul<span>4 changes</span></div>
+        <p class="what">Group edit now pre-selects what was saved. Compute serialised per policy so two runs stop locking each other out. Results shown only once the compute has actually finished.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Thu 30 Jul<span>5 changes</span></div>
+        <p class="what">FAC register built — the register itself, slips, and the coverage-gap check. Auto FAC attachment corrected to read surplus capacity. Compute indexed.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Fri 31 Jul<span>2 changes</span></div>
+        <p class="what">Ten FAC defects closed, and two holes in the placement status flow closed.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Sat 1 Aug<span>Released</span></div>
+        <p class="what">FAC register live on the Reinsurance menu.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Mon 3 Aug<span>2 changes</span></div>
+        <p class="what">Motor Traders Auto FAC capped correctly. Formula creation fixed.<em>Issued: RI-01 Business Requirements · RI-02 Gap Analysis</em></p>
+      </div>
+      <div class="entry">
+        <div class="day">Tue 4 Aug<span>Documents</span></div>
+        <p class="what">Delivery schedule and configuration runbook written and issued.<em>Issued: RI-03 Delivery Schedule · RI-04 Configuration Runbook</em></p>
+      </div>
+      <div class="entry">
+        <div class="day">Wed 5 Aug<span>9 changes</span></div>
+        <p class="what">Nine fixes across the treaty, formula and type screens. The ceded percentage tile was being guessed rather than calculated — now calculated. Motor cession read from configuration instead of being fixed in the code. Duplicate group names rejected.<em>Issued: RI-05 Treaty Configuration Spec</em></p>
+      </div>
+      <div class="entry">
+        <div class="day">Thu 6 Aug<span>1 change</span></div>
+        <p class="what">The reinsurance tab now shows how much sum insured is left outside the treaty, per risk.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Fri 7 Aug<span>1 change</span></div>
+        <p class="what">Required facultative worked out from the treaty shortfall, instead of being typed in.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Mon 10 Aug<span>1 change</span></div>
+        <p class="what">Facultative terms read from the treaty year in force, not a figure fixed in the code.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Tue 11 Aug<span>2 changes</span></div>
+        <p class="what">2026/27 surplus layer added for Property and Engineering. Four points from Reinsurance's own testing of the FAC register closed.<em>Issued: RI-07 Group Bifurcation · RI-08 Capacities Table</em></p>
+      </div>
+      <div class="entry">
+        <div class="day">Wed 12 Aug<span>1 change</span></div>
+        <p class="what">Surplus and FAC layers now compute whatever case the formula type is stored in — some were silently skipped.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Thu 13 Aug<span>2 changes</span></div>
+        <p class="what"><strong>The 2026/27 treaty year configured</strong> — both treaties created, the outgoing treaty closed at 30 June so nothing cedes twice, and the layers attached. Motor treaty capacity read from configuration, not a fixed 6,500,000. Everything since has been correcting this live configuration.<em>Issued: RI-09 Cession Bifurcation</em></p>
+      </div>
+      <div class="entry">
+        <div class="day">Mon 17 Aug<span>1 change</span></div>
+        <p class="what">A saved placement can be corrected, with a trail recording who changed what, when, and the before and after value.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Tue 18 Aug<span>7 changes</span></div>
+        <p class="what">Capture split into new placement versus one already signed. Slip generated on save, with a number allocated where none is typed. Every rejected field named instead of one at a time. Page encoding repaired.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Wed 19 Aug<span>5 changes</span></div>
+        <p class="what">The slip prints the terms the signed slips carry. Slip series runs lowest first, and every placement shows its stage. Slip storage made configurable so a storage outage is not a hard stop. Regulatory mapping column added and seeded, commercial and domestic.<em>Issued: RI-10 Regulatory Mapping workbook and reply</em></p>
+      </div>
+      <div class="entry">
+        <div class="day">Thu 20 Aug<span>Handover</span></div>
+        <p class="what">FAC register handed to Reinsurance for testing. All seven reported items done, covered by 35 tests and 178 checks.<em>Issued: FAC-01 Defects Ready for Testing</em></p>
+      </div>
+      <div class="entry">
+        <div class="day">Fri 21 Aug<span>2 changes</span></div>
+        <p class="what">Reinsurance and claims tests stopped reading and writing the live database.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Mon 24 Aug<span>3 changes</span></div>
+        <p class="what">Cession calculator rebuilt on the regulatory mapping basis, with a test that checks it against both signed slips. FAC participants panel, cession bordereau and treaty conditions added. Four slip content errors Reinsurance found were fixed.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Tue 25 Aug<span>5 changes</span></div>
+        <p class="what">Class limits restored for Motor, Miscellaneous, Guarantee and Transportation, and the sum insured test moved to the risk address. Underwriter-entered schedule added. Quarterly premium payments, and cession rates now held to eight decimals. Four remaining slip gaps pinned so they cannot be forgotten.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Wed 26 Aug<span>3 changes</span></div>
+        <p class="what">The single 10,000,000 treaty first line applied across every regulatory mapping, replacing the per-class Schedule A limits that had been configured — those were understating cession by 56,172,000 on COMG2026213751. Band 3 now caps the placement, and Motor Traders gets its surplus back. Quota share limit read from the treaty in force rather than any year.<em>Issued: RI-11 Reply on 15 review points · RI-12 Configuration Values</em></p>
+      </div>
+      <div class="entry">
+        <div class="day">Thu 27 Aug<span>4 changes</span></div>
+        <p class="what">Group Personal Accident domestic group created and its formula moved onto it. Test group removed. An Auto FAC on Miscellaneous that no slip supports was dropped, and its FAC attachment lowered to match.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Fri 28 Aug<span>Reported</span></div>
+        <p class="what">Status reported to the business, and the questions put to Reinsurance.<em>Issued: RI-13, RI-14</em></p>
+      </div>
+      <div class="entry">
+        <div class="day">Sat 29 Aug<span>3 changes</span></div>
+        <p class="what">All three faults in the FAC slip closed — a filed signed slip now records the reinsurer's commitment, the term-sheet wording can be typed in, and the slip prints the currency the placement is actually in. Cession calculator wired to policies for the first time, behind a flag.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Mon 31 Aug<span>7 changes</span></div>
+        <p class="what"><strong>The read rebuilt, and the policy reconciled.</strong> Cession now comes from the table the treaty cedes from rather than the coverage rows, which never carried motor. COMG2026213751 totals 687,704,212 against Reinsurance's 687,704,212 — every group to the cent. Reinsurance's six answers of 31 August applied, and the Accident remap written to the database.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Tue 1 Sep<span>13 changes</span></div>
+        <p class="what"><strong>Ran the engine against Reinsurance's own eighteen test cases.</strong> Twelve agreed at once; two of the six differences were ours and are fixed — the facultative layer has no ceiling on a layered class, and a nil sum insured is a data error rather than a nil cession. Their capacities table also corrected three faults in the hours clause and filled in the territorial scope, the special acceptances, the inwards facultative restriction, the engineering referrals and the contingent business interruption sub-limits. <strong>The three annual aggregates close the underwriting controls</strong> &mdash; SRCC Zimbabwe 20,000,000, War and Goods in Transit 6,000,000, Motor Riot and Strike 50,000,000. Unlike an event limit these do not reset, so the year is walked in date order and the pot erodes as it goes. One riot at the full Motor event limit exhausts that cover for the rest of the year, which is what the slip says and is easy to miss. <strong>Their eighteen test cases are now re-performed on every build.</strong> We had compared against them once, by hand; their own Control C3 asks for it monthly, which a comparison done once does not satisfy. Fourteen reproduce exactly and the four that do not are the basis they themselves superseded &mdash; those are pinned to our figures with theirs recorded beside them, so neither can drift unnoticed.</p>
+      </div>
+      <div class="entry">
+        <div class="day">Wed 2 Sep<span>6 changes</span></div>
+        <p class="what"><strong>The regulatory cession is now stored beside the legacy one, and both tabs read through one place.</strong> A separate table holds the regulatory allocation, so the two bases sit side by side and the switch is reversible. The reinsurance tab and the policy API now take their figures from a single seam that decides which basis is live &mdash; proved identical to their own queries first, across 50 policy and action pairs, before either was touched. <strong>The whole book was run on both bases</strong>, which found that the first run had included 39 policies from other treaty years; scoped correctly it is nine in-year policies, and the headline figure changed with it.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">03</span> What is live, and what is still in our hands</h2>
+    <p class="lede">First what has closed since the last report, then what the reconciliation proved, then the three items in our hands to finish. The items needing a decision or a document from the business are listed in RI-13.</p>
+
+    <h3>Closed since the last report</h3>
+    <p class="lede">All six items that were ours on 27 August are finished.</p>
+    <ul class="points">
+      <li><strong>All three faults in the facultative slip are closed.</strong> Filing a signed slip now records the reinsurer&rsquo;s commitment and closes the panel; deductible, description of risk and territorial scope can be typed in; and the slip prints the currency the placement is actually in, and refuses to add two currencies into one total.</li>
+      <li><strong>The cession is wired to the regulatory mapping.</strong> The calculator now runs against real policies. It sits behind a flag that still defaults to the old routing, because switching it changes what is ceded &mdash; that sign-off is item 2 of the business list in RI-13.</li>
+      <li><strong>Engineering is created and populated, and the Accident remap is written to the database</strong> &mdash; 56 coverage rows across five groups.</li>
+      <li><strong>The 40,000,000 surplus is evidenced.</strong> The Final Terms show a retention of 10,000,000 and four lines. Reinsurance&rsquo;s own work paper doubted this; the doubt assumed the lines sat on the 3,000,000 net retention leg, and they do not. No question needed to be asked.</li>
+      <li><strong>The catastrophe programme has been received</strong> and its limits are loaded &mdash; 70,000,000 per event on both General and Motor, 120,000,000 on the surplus, and 50,000,000 on motor riot and strike.</li>
+    </ul>
+
+    <h3>What the reconciliation proved</h3>
+    <div class="callout">
+      <div class="hd">COMG2026213751 &mdash; 687,704,212 against 687,704,212</div>
+      <p>The test policy now reconciles to Reinsurance&rsquo;s own workbook <strong>to the cent, group by group</strong> &mdash; Property 346,134,212, Transportation 300,000,000, Motor 38,000,000, Guarantee 2,000,000, Miscellaneous 1,570,000.</p>
+      <p>Getting there meant rebuilding the read. We were taking sums insured from the coverage rows, which do not carry motor at all &mdash; 38,000,000 of this policy was invisible. The figures now come from the table the treaty actually cedes from.</p>
+      <p><strong>Their own test cases then found two faults in our engine, and both are fixed.</strong> The facultative layer has no ceiling on a layered class &mdash; we had capped it at 50,000,000, generalising from motor evidence. And a nil sum insured is a data error to be raised, not a nil cession to be quietly written. Fourteen of their eighteen cases now reproduce exactly; the other four are the uncapped basis they instructed on 17 August and themselves reversed on 24 August, and our figures follow the later instruction.</p>
+    </div>
+
+    <h3>Ours to finish</h3>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Item</th><th>What it means</th><th style="width:6.5rem">Size</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="who">1</td>
+            <td><strong>The quarterly statement of account</strong><br><span class="pill block">Not started</span></td>
+            <td>Everything else on this list is finishing work. This is a build that has not begun and it carries the only contractual date. Detail below.</td>
+            <td class="when">20&ndash;25 days</td>
+          </tr>
+          <tr>
+            <td class="who">2</td>
+            <td>The last cession read site</td>
+            <td>The reinsurance tab and the policy API now read through one place that decides which basis is live &mdash; proved identical to their own queries first, across 50 policy and action pairs. One service is left, the facultative coverage-gap check. It now has the tests it never had, so the move is safe; the only question is timing, because Reinsurance are testing the facultative register against it this week.</td>
+            <td class="when">&frac12; day</td>
+          </tr>
+          <tr>
+            <td class="who">3</td>
+            <td>Run the reconciliation against production</td>
+            <td>Every figure quoted so far is from the test server, which holds nine policies in the treaty year and one of them is 98% of the value. That is enough to prove the engine and not enough to sign. Needs an environment we cannot reach from here.</td>
+            <td class="when">Blocked</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Not started &mdash; the piece with the deadline</h3>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Work</th><th>What it produces</th><th style="width:7.5rem">Effort</th><th style="width:7rem">Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Quarterly statement of account</strong></td>
+            <td>Per treaty per quarter: premium ceded, ceding commission, brokerage at 2.50%, claims paid less recoveries, outstanding claims, cash losses, reserve deposit and interest, VAT, and the net balance due either way. Plus the contractual clocks &mdash; render within 45 days, confirm within 14.</td>
+            <td class="when">20&ndash;25 days</td>
+            <td><span class="pill block">Not started</span></td>
+          </tr>
+          <tr>
+            <td>Treaty limits and underwriting controls</td>
+            <td>Event limits and the hours clause, the three annual aggregates, the loss ratio cap, territorial checks, facultative gates, special acceptances, engineering referrals, contingent business interruption sub-limits, and the multi-year event apportionment.</td>
+            <td class="when">&mdash;</td>
+            <td><span class="pill done">Complete</span></td>
+          </tr>
+          <tr>
+            <td>Commission engine completion</td>
+            <td>Motor&rsquo;s sliding scale from the provisional 25% to final, profit commission with five years of loss carry-forward, and written versus signed lines with the basis conversion.</td>
+            <td class="when">8&ndash;10 days</td>
+            <td><span class="pill open">Sequenced to Aug 2027</span></td>
+          </tr>
+          <tr>
+            <td>IFRS 17 outputs and RI dashboard</td>
+            <td>Reinsurance contracts held, ceded premium, amounts recoverable from reinsurers, treaty position dashboard.</td>
+            <td class="when">8&ndash;10 days</td>
+            <td><span class="pill open">Sequenced to Aug 2027</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+
+</div>

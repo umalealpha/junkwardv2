@@ -1,0 +1,22 @@
+<?php
+
+namespace AlphaDirect;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use OwenIt\Auditing\Contracts\Auditable;
+
+class Banks extends Model implements Auditable
+{
+    use \OwenIt\Auditing\Auditable;
+    use HasFactory;
+    protected $auditTimestamps = true;
+    //
+    protected $table = 'banks';
+
+    protected $hidden = ['created_at', 'updated_at'];
+
+    protected $fillable = [
+        'bank_name', 'bank_number','emails',
+    ];
+}

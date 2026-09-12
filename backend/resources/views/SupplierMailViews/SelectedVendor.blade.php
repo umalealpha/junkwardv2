@@ -1,0 +1,1 @@
+You have been selected.Your funds will shortly be sent

@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php -l backend/app/Http/Livewire/Policy/ManageCoverages.php)",
+      "Bash(php -l backend/app/Http/Controllers/Api/V1/SpecialistCoverageController.php)",
+      "Bash(php -l backend/database/migrations/2026_05_08_180000_drop_open_policy_no_from_marine_cargo_once_off_coverages_table.php)",
+      "Bash(grep -n 'TransToken\\\\|TransactionToken\\\\|->input\\('\\\\''\\\\|->query\\('\\\\''\\\\|request->\\\\|$_GET\\\\|TransID\\\\|CompanyRef\\\\|->get\\('\\\\''' backend/app/Http/Controllers/DpoPaymentController.php)",
+      "Bash(php /Users/satyajeetsingh/Graphitev2/backend/artisan route:list --path=webhooks/dpo)",
+      "Bash(php /Users/satyajeetsingh/Graphitev2/backend/artisan route:list)",
+      "Bash(php -l app/Http/Controllers/Api/V1/PolicyRealpayController.php)",
+      "Bash(php -l app/Services/RealpayService.php)",
+      "Bash(npx tsc *)",
+      "Bash(grep -n 'addInvoiceToLedger\\\\|floatval\\($policy->vat\\\\|$policy->vat\\\\|Invoice VAT\\\\|VAT Control\\\\|due_date\\\\|status'\\\\''\\\\]' /Users/satyajeetsingh/Graphitev2/cron/app/Helper.php)",
+      "Bash(grep -n 'public static function\\\\|public function\\\\|$record\\\\['\\\\''due_amount'\\\\''\\\\] = $policy->premium;\\\\|$policy = Policy::where\\('\\\\''id'\\\\'', $policy_id\\)->first\\(\\);\\\\|addInvoiceToLedger\\\\|$isInstant' /Users/satyajeetsingh/Graphitev2/backend/app/Helper.php)",
+      "Bash(grep -n 'floatval\\($policy->vat\\)\\\\|$amt = floatval\\\\|= floatval\\($policy->vat\\)' /Users/satyajeetsingh/Graphitev2/backend/app/Helper.php)",
+      "Bash(php -l /Users/satyajeetsingh/Graphitev2/backend/app/Http/Controllers/Admin/PolicyController.php)",
+      "Bash(php -r ' *)",
+      "Read(//Users/satyajeetsingh/**)",
+      "Bash(timeout 12 php -r ' *)",
+      "Bash(php -l /Users/satyajeetsingh/Graphitev2/backend/app/Http/Controllers/Api/V1/PolicyController.php)",
+      "Bash(php artisan *)",
+      "Bash(php -l /Users/satyajeetsingh/Graphitev2/backend/app/Http/Controllers/Api/V1/PolicyCreateController.php)",
+      "Bash(grep -n 'protected $fillable' /Users/satyajeetsingh/Graphitev2/backend/app/Vehicle.php)",
+      "Bash(grep -n '$request->user\\(\\)\\\\|auth\\(\\)->id\\(\\)\\\\|Auth::' /Users/satyajeetsingh/Graphitev2/backend/app/Http/Controllers/Api/V1/CommunicationController.php)",
+      "Bash(grep -n '$request->user\\(\\)\\\\|auth\\(\\)->id\\(\\)\\\\|Auth::' /Users/satyajeetsingh/Graphitev2/backend/app/Http/Controllers/Api/V1/ClaimsV2Controller.php)",
+      "Bash(php -l app/Http/Controllers/Api/V1/PreinspectionController.php)",
+      "Bash(php -l routes/api_v1.php)",
+      "Bash(grep -v \"^$\")"
+    ]
+  }
+}

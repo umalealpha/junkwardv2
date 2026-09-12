@@ -1,0 +1,27 @@
+<?php
+
+return [
+	'name' => 'Name :',
+    'contact_person' => 'Contact Person :',
+    'mobile' =>'Mobile :',
+	'email' =>'Email Id :',
+	'address' => 'Address :',
+	'appearance_order' => 'Appearance Order :',
+	'store_name' => 'Store Name:',
+	'state' => 'State :',
+	'address' => 'Address :',
+	'city' => 'City :',
+	'status' => 'Status :',
+	'partner' => 'Partner :',
+	'product' => 'Product :',
+	'plan' => 'Plan :',
+	'minimum_warehouse_inventory' => 'Minimum warehouse inventory :',
+	'maximum_warehouse_inventory' => 'Maximum warehouse inventory :',
+	'actual_count' => 'Actual Count :',
+	'warehouse' => 'Warehouse :',
+	'available_stock' => 'Available Stock:',
+	'partner_name' => 'Partner Name:',
+	'payment_type' => 'Payment Type:',
+	'incentive_type' => 'Incentive Type:',
+	'incentive_value' => 'Incentive Value:',
+];

@@ -1,0 +1,79 @@
+backend/.env
+backend/.env.testing
+cron/.env
+cron/.env.*
+backend/storage/logs/
+backend/storage/debugbar/
+backend/storage/framework/views/
+backend/storage/fonts/
+backend/storage/app/cron-logs/*.log
+backend/bootstrap/cache/
+
+# PHP Composer & Vendor
+**/vendor/
+**/composer.lock
+cron/vendor/
+backend/vendor/
+cron/composer.lock
+backend/composer.lock
+
+frontend/node_modules/
+backend/storage/framework/cache/
+
+# Static coverage wording PDFs (copied from production)
+backend/storage/app/CoverageWiseMultimark/
+backend/storage/app/*.tar.gz
+
+# Main Graphitev2 frontend
+frontend/node_modules/
+frontend/dist/
+
+# ACE frontend
+ace/frontend/node_modules/
+ace/frontend/dist/
+# Claims frontend
+claims/frontend/node_modules/
+claims/frontend/dist/
+claims/public/dist/
+
+# Runtime artifacts
+backend/storage/app/public/
+backend/storage/framework/sessions/
+cron/storage/fonts/
+claims/frontend/package-lock.json
+
+# Generated dev portal spec — regenerated on container boot from current routes
+backend/dev/openapi.json
+
+# Temporary OCR upload chunks (per-session dirs, cleaned up after assembly)
+backend/storage/app/scan_chunks/
+
+# ─── User-authored documentation — local only, not in repo ──────
+# These are operational notes / handoffs / audits / setup guides
+# that should stay on the developer's machine. Code stays in repo
+# as normal. Vendor lib README/LICENSE files (e.g. under
+# backend/public/Printing/assets/vendors/) are left alone — they're
+# part of the vendored library and shouldn't be removed.
+/*.md
+/PARITY_AUDITS/
+/backend/dev/
+
+# Exception: if a service genuinely needs its README in repo (e.g.
+# pdf-service has setup instructions other devs need), add a
+# negation here:
+!pdf-service/README.md
+
+# ─── Backup files & untracked env (pentest repo hygiene) ────────
+*.save
+*.bak
+*.orig
+*_backup/
+frontend/.env
+frontend/.env.local
+
+# Excel and Word lock files. They appear whenever a workbook in docs/ is
+# open and are never worth committing -- one was sitting in docs/ untracked.
+~$*
+
+# PHPUnit result cache (test outcomes/timings for --order-by=defects). Regenerated on every run.
+backend/.phpunit.result.cache

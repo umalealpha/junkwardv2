@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daily Dev Status Report — Alpha Direct</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #FAF8F1;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1A1A19;
+    padding: 24px;
+    line-height: 1.5;
+  }
+  .frame {
+    max-width: 1180px;
+    margin: 0 auto;
+    background: #FFFFFF;
+    border: 1px solid #E5E2D6;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  /* Header */
+  .hdr {
+    background: #1a2744;
+    padding: 20px 28px;
+  }
+  .hdr h1 {
+    color: #FFFFFF;
+    font-size: 16px;
+    font-weight: 500;
+    margin: 0;
+  }
+  .hdr-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px;
+    margin-top: 10px;
+  }
+  .hdr-meta span {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.55);
+  }
+  .hdr-meta span b {
+    color: rgba(255, 255, 255, 0.92);
+    font-weight: 500;
+    margin-right: 4px;
+  }
+
+  /* Body */
+  .body {
+    padding: 28px 32px;
+    background: #FFFFFF;
+  }
+
+  /* Summary tiles */
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 4px 0 30px;
+    text-align: center;
+  }
+  .sc .n {
+    font-size: 30px;
+    font-weight: 400;
+    line-height: 1.2;
+  }
+  .sc .l {
+    font-size: 13px;
+    color: #5F5E5A;
+    margin-top: 2px;
+  }
+  .sc.d .n { color: #0F6E56; }
+  .sc.p .n { color: #185FA5; }
+  .sc.t .n { color: #B07419; }
+  .sc.b .n { color: #A32D2D; }
+
+  /* Section title */
+  .sec-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: #5F5E5A;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 20px 0 12px;
+  }
+
+  /* Lede paragraph */
+  .lede {
+    background: #ECF7F2;
+    border-left: 3px solid #0F6E56;
+    padding: 13px 16px;
+    border-radius: 3px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #1F4D43;
+    margin-bottom: 6px;
+  }
+  .lede b { color: #0A3D33; font-weight: 600; }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  th {
+    font-size: 13px;
+    font-weight: 500;
+    color: #5F5E5A;
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #E5E2D6;
+    background: transparent;
+  }
+  td {
+    padding: 11px 12px;
+    border-bottom: 1px solid #ECEAE0;
+    color: #1A1A19;
+    vertical-align: top;
+    font-size: 12.5px;
+  }
+
+  /* Module group sub-header rows */
+  .mod-row td {
+    background: transparent !important;
+    font-weight: 500;
+    font-size: 13px;
+    color: #1A1A19;
+    padding: 14px 12px 6px;
+    border-bottom: none;
+    letter-spacing: -0.01em;
+  }
+  .mod-row + tr td { padding-top: 11px; }
+
+  /* Status badges */
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .bd { background: #E1F5EE; color: #0A5240; }
+  .bp { background: #E6F1FB; color: #0C447C; }
+  .bt { background: #FAEEDA; color: #7A4708; }
+  .bb { background: #FCEBEB; color: #791F1F; }
+
+  /* Severity badges */
+  .sev-p1 { background: #FCEBEB; color: #791F1F; }
+  .sev-p2 { background: #FAEEDA; color: #7A4708; }
+  .sev-p3 { background: #E6F1FB; color: #0C447C; }
+
+  /* Local / Staging badges */
+  .etag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .et-pass     { background: #E1F5EE; color: #0A5240; }
+  .et-fail     { background: #FCEBEB; color: #791F1F; }
+  .et-pend     { background: #FAEEDA; color: #7A4708; }
+
+  /* Callouts */
+  .callout {
+    padding: 12px 14px;
+    border-radius: 4px;
+    margin: 10px 0;
+    font-size: 12.5px;
+    line-height: 1.7;
+  }
+  .callout-good { background: #ECF7F2; border-left: 3px solid #0F6E56; color: #1F4D43; }
+  .callout-info { background: #EAF1FB; border-left: 3px solid #185FA5; color: #163F70; }
+  .callout-warn { background: #FFF8E6; border-left: 3px solid #EF9F27; color: #5F4A21; }
+  .callout-bad  { background: #FCEBEB; border-left: 3px solid #A32D2D; color: #5F1818; }
+  .callout b { color: #1A1A19; font-weight: 600; }
+
+  /* Scope summary box */
+  .scope {
+    background: #F7F5EE;
+    border-radius: 4px;
+    padding: 14px 16px;
+    font-size: 12.5px;
+    line-height: 1.85;
+    color: #1A1A19;
+  }
+  .scope b { color: #1a2744; font-weight: 600; }
+
+  /* Footer */
+  .footer {
+    padding: 14px 28px;
+    background: #FAF8F1;
+    border-top: 1px solid #E5E2D6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 12px;
+    color: #5F5E5A;
+  }
+  .footer b { color: #1A1A19; font-weight: 500; }
+
+  /* ETA column */
+  td.eta { color: #5F5E5A; font-size: 12px; }
+
+  /* Inline code */
+  code {
+    font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    background: #F2EEDC;
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #5F4A21;
+  }
+</style>
+</head>
+<body>
+
+<div class="frame">
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <h1>Daily dev status report — Alpha Direct</h1>
+    <div class="hdr-meta">
+      <span><b>Date:</b> Thursday, 28 May 2026</span>
+      <span><b>Developer:</b> Monika Mali</span>
+      <span><b>Sprint:</b> Pre-Production Stabilisation</span>
+      <span><b>To:</b> Managers</span>
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div class="body">
+
+    <!-- Lede summary paragraph -->
+    <div class="lede">
+      Today's focus: <b>completed end-to-end specialist product endorsement testing</b> from the dev side across all 5 products (Engineering, Commercial Travel, Domestic Travel, Commercial Liabilities, Marine) — <b>handed over to UW and Muskan for sign-off</b>. Built a <b>47-case smoke-test CSV</b> covering NEW / ENDORSE / RENEW / CANCEL across all specialist coverages — ready for UW verification. Diagnosed and shipped a <b>permanent fix for the V2 Quote scheduler stall</b> (queue no longer dependent on cron health). Ported the <b>V1 Sub Company management UI to V2</b> on the Edit Policy page. Fixed the <b>refund display on the V2 Quote Rating banner</b> to show negative values for cancels. Also investigated a <b>backend 404 after login</b> reported during testing — confirmed it's by design (Pramod's V1 admin panel lockdown for DPA compliance).
+    </div>
+
+    <!-- Summary tiles -->
+    <div class="summary" style="margin-top: 24px;">
+      <div class="sc d"><div class="n">6</div><div class="l">Shipped / handed over</div></div>
+      <div class="sc p"><div class="n">0</div><div class="l">In progress</div></div>
+      <div class="sc t"><div class="n">2</div><div class="l">Pending UW sign-off</div></div>
+      <div class="sc b"><div class="n">0</div><div class="l">Open blockers</div></div>
+    </div>
+
+    <!-- WORK DONE TODAY -->
+    <div class="sec-title">Work done today</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:5%">#</th>
+          <th style="width:24%">Item</th>
+          <th style="width:12%">Type</th>
+          <th style="width:34%">What was done</th>
+          <th style="width:15%">Commit / Ref</th>
+          <th style="width:10%">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+
+        <tr class="mod-row"><td colspan="6">Specialist Endorsement — Testing</td></tr>
+
+        <tr>
+          <td>1</td>
+          <td>Special Product endorse — end-to-end testing</td>
+          <td><span class="badge bt">Testing</span></td>
+          <td>Completed end-to-end specialist endorsement testing across Engineering (CAR / PAR / EAR / MBD), Commercial &amp; Domestic Travel, Liabilities (MM / PI / D&amp;O) and Marine (Cargo Once-Off / Open). Verified pro-rata factor = newDays/totalDays behaves correctly on representative cases. Cancel-policy refund flow re-tested with negative pro-rata. <b>Dev-side testing complete — handed over to UW and Muskan for sign-off.</b></td>
+          <td>—</td>
+          <td><span class="badge bd">Handed over</span></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Specialist Products smoke-test CSV (UW handover)</td>
+          <td><span class="badge bp">Test plan</span></td>
+          <td>Built a 47-case smoke-test matrix covering products 16 / 17 / 18 / 20 / 22 × NEW / ENDORSE / RENEW / CANCEL. CSV includes expected Annual + Pro-Rata gross (incl-VAT) using canonical formula. Ready for Sonali's UW team to verify against actual product rates.</td>
+          <td><code>scripts/specialist_products_smoke_test_cases.csv</code></td>
+          <td><span class="badge bd">Ready for UW</span></td>
+        </tr>
+
+        <tr class="mod-row"><td colspan="6">V2 Quote — Scheduler Fix (Permanent)</td></tr>
+
+        <tr>
+          <td>3</td>
+          <td>V2 Quote generation no longer dependent on cron health</td>
+          <td><span class="badge bb">Bugfix</span></td>
+          <td>Diagnosed intermittent "Queued for V2 Quote generation" stalls. Root cause: <code>CACHE_DRIVER=file</code> on backend container left stale <code>withoutOverlapping</code> locks after any tick crash (OOM / deploy / wkhtmltopdf segfault), blocking the queue until <code>cache:clear</code>. Fix: controller now spawns the worker directly on every user click (fire-and-forget detached process). Scheduler kept as backstop. DB row-lock in <code>processOne()</code> guarantees no double-processing.</td>
+          <td><code>PolicyCreateController.php</code> + <code>docs/v2-quote-trigger-2026-05-28.md</code></td>
+          <td><span class="badge bd">Ready to deploy</span></td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>Refund amount displays as negative on Rating banner</td>
+          <td><span class="badge bb">UI fix</span></td>
+          <td>Rating Complete banner now shows <code>Refund: P -5,886.64</code> for cancel pro-rata (was previously dropping the minus via <code>Math.abs()</code>). Matches the cancel-pro-rata-always-negative convention and aligns with how the dropdown already renders the refund.</td>
+          <td><code>PolicyDetailPage.tsx:3310</code></td>
+          <td><span class="badge bd">Done</span></td>
+        </tr>
+
+        <tr class="mod-row"><td colspan="6">Sub Company Management — V1 → V2 Port</td></tr>
+
+        <tr>
+          <td>5</td>
+          <td>Sub Company section on V2 Edit Policy page</td>
+          <td><span class="badge bp">Feature</span></td>
+          <td>Ported the V1 Livewire Sub-Company panel (SubAdd.php) to V2 React. Lives directly below the yellow Company Details panel on <code>/policies/{id}/edit</code> when entity is Organisation. Supports list / add / edit / delete with same field set as V1: Name, VAT, Reg, Address, Postal, Province (cascade) → City, Pincode, Contact Person + Number, Primary / Secondary / Broker emails, Status. Backend reused — existing <code>master/companies</code> CRUD already handled sub-companies; only added missing <code>contact_person</code> field to validators.</td>
+          <td><code>StepPolicyDetails.tsx</code> + <code>MasterDataController.php</code></td>
+          <td><span class="badge bd">Done</span></td>
+        </tr>
+
+        <tr class="mod-row"><td colspan="6">Backend Access — Investigation</td></tr>
+
+        <tr>
+          <td>6</td>
+          <td>Backend 404 after login — diagnosed</td>
+          <td><span class="badge bp">Investigation</span></td>
+          <td>Hit 404 on <code>graphite-v2-be.alphadirect.co.bw/admin/dashboard</code> after login. Confirmed this is intentional — Pramod's commit <code>25af2ae82</code> (BlockV1AdminPanel middleware, 26 hrs ago) closes the V1 admin panel on the V2 BE domain to meet Prathap's DPA-001 finding. SSO + password login itself still works — the BE is now API-only post-cutover. Documented the fix path for the team: use the V2 FE domain.</td>
+          <td>commit <code>25af2ae82</code></td>
+          <td><span class="badge bd">Resolved</span></td>
+        </tr>
+
+      </tbody>
+    </table>
+
+    <!-- KEY DELIVERABLES -->
+    <div class="sec-title">Key deliverables for review</div>
+    <div class="callout callout-info">
+      <b>UW handover:</b> <code>scripts/specialist_products_smoke_test_cases.csv</code> — 47 cases across all 5 specialist products × 4 actions. UW to verify Expected Annual / Pro-Rata against actual product rates in UAT.<br>
+      <b>V2 Quote stability:</b> <code>docs/v2-quote-trigger-2026-05-28.md</code> — root cause + permanent fix write-up. Queue no longer depends on scheduler / cron health.
+    </div>
+
+    <!-- ISSUES FOUND -->
+    <div class="sec-title">Issues found / resolved during testing</div>
+    <div class="callout callout-good">
+      <b>V2 Quote stall:</b> Intermittent "Queued for V2 Quote generation" hangs traced to stale scheduler lock under <code>CACHE_DRIVER=file</code>. Permanent fix shipped — backend container restart no longer breaks V2 quote generation for users.<br>
+      <b>Rating banner Refund display:</b> Was missing the minus sign — now correctly shows refund as negative.
+    </div>
+
+    <!-- CRON STATUS -->
+    <div class="sec-title">Cron service</div>
+    <div class="callout callout-good">
+      <b>Cron service:</b> healthy. <code>pdf:process-pending</code> still scheduled every minute as a backstop, but V2 Quote generation no longer depends on it being healthy — each user click now kicks the worker directly.
+    </div>
+
+    <!-- BLOCKERS -->
+    <div class="sec-title">Blockers</div>
+    <div class="callout callout-good">
+      <b>None.</b> All specialist endorse work and the V2 Quote scheduler fix are ready for review / deploy.
+    </div>
+
+    <!-- PLAN FOR TOMORROW -->
+    <div class="sec-title">Plan for tomorrow — Friday, 29 May 2026</div>
+    <div class="callout callout-info">
+      <b>Focus:</b> UW sign-off on the 47-case smoke test, close remaining specialist endorse edge cases, and continue the Specialist Cancel Policy hardening.
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:5%">#</th>
+          <th style="width:35%">Task</th>
+          <th style="width:25%">Module / Area</th>
+          <th style="width:35%">Expected outcome / Acceptance</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>UW review &amp; sign-off on smoke-test CSV</td>
+          <td>Specialist products — all 5</td>
+          <td>UW fills Actual + Pass/Fail columns; close out cases or capture defects per coverage</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Deploy V2 Quote inline-kick fix</td>
+          <td>Backend — V2 Quote pipeline</td>
+          <td>Confirm in UAT that new quote jobs start within seconds without depending on the scheduler tick</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>Verify Sub Company section on Edit Policy</td>
+          <td>V2 — Edit Policy / Company panel</td>
+          <td>Add / Edit / Delete sub-companies on a live policy; confirm payload + cascade dropdowns</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>Support UW &amp; Muskan during specialist endorse sign-off</td>
+          <td>Specialist endorse / cancel</td>
+          <td>Be on standby for any UW / Muskan queries during their verification pass; turn around any defects raised during sign-off</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- OVERALL STATUS -->
+    <div class="sec-title">Overall status</div>
+    <div class="scope">
+      <b>Specialist endorsement:</b> Dev-side testing complete across all 5 specialist products — <b>handed over to UW and Muskan for sign-off</b>. 47-case smoke CSV provided as the verification grid.<br>
+      <b>V2 Quote generation:</b> Permanent fix shipped — no longer dependent on scheduler / cron health.<br>
+      <b>UI fixes:</b> Rating banner refund now displays correctly as negative.<br>
+      <b>Sub Company management:</b> V1 panel ported to V2 Edit Policy page (read / add / edit / delete).<br>
+      <b>Backend access:</b> 404 after login confirmed as Pramod's intentional V1 admin lockdown (DPA-001 compliance).<br>
+      <b>Cron:</b> Stable; V2 Quote no longer reliant on it.<br>
+      <b>Production-readiness:</b> On track. No open blockers from today.
+    </div>
+
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <span><b>Monika Mali</b> · Alpha Direct · mmali@theriskco.com</span>
+    <span>Daily report · 28 May 2026</span>
+  </div>
+
+</div>
+
+</body>
+</html>

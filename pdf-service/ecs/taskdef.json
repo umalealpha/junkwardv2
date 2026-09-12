@@ -1,0 +1,43 @@
+{
+  "family": "graphite-pdf-service",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::623467544388:role/graphite-ecs-task-execution",
+  "taskRoleArn": "arn:aws:iam::623467544388:role/graphite-ecs-task-execution",
+  "containerDefinitions": [
+    {
+      "name": "pdf-service",
+      "image": "623467544388.dkr.ecr.af-south-1.amazonaws.com/graphite-pdf-service:latest",
+      "essential": true,
+      "portMappings": [
+        { "containerPort": 3000, "protocol": "tcp" }
+      ],
+      "environment": [
+        { "name": "PORT",            "value": "3000" },
+        { "name": "NODE_ENV",        "value": "production" },
+        { "name": "CHROME_PATH",     "value": "/usr/bin/chromium" },
+        { "name": "MAX_RENDER_MS",   "value": "150000" },
+        { "name": "MAX_CONCURRENT",  "value": "2" },
+        { "name": "PDF_API_KEY",     "value": "graphite-pdf-4f8a9c6d2e7b1h5j9k3m" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 30
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/graphite-pdf-service",
+          "awslogs-region": "af-south-1",
+          "awslogs-stream-prefix": "pdf",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "alpha-brain",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Alpha Direct decision brain (claims, finance, KYC, fraud guards) — an isolated bolt-on that runs alongside Graphite V2. Decides and queues; never writes Graphite's data.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "daily": "node daily.js",
+    "test": "node run-tests.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "mysql2": "^3.11.0"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^12.8.0"
+  }
+}

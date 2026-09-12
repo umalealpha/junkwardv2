@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # ── Laravel Backend ──────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: graphite-backend
+    ports:
+      - "8000:80"
+    environment:
+      - APP_ENV=staging
+      - APP_DEBUG=true
+      - DB_HOST=graphite-test-write.c1y5xpqlrcpg.af-south-1.rds.amazonaws.com
+      - DB_HOST_WRITE=graphite-test-write.c1y5xpqlrcpg.af-south-1.rds.amazonaws.com
+      - DB_HOST_READONLY=graphite-test-write.c1y5xpqlrcpg.af-south-1.rds.amazonaws.com
+      - DB_HOST_RO=graphite-test-write.c1y5xpqlrcpg.af-south-1.rds.amazonaws.com
+      - DB_PORT=3306
+      - DB_DATABASE=Graphite_live
+      - DB_USERNAME=graphitebwlive
+      - DB_PASSWORD=89JJX(aBQ
+      - DB_DATABASE_READONLY=Graphite_live
+      - DB_USERNAME_READONLY=graphitebwlive
+      - DB_PASSWORD_READONLY=89JJX(aBQ
+      - CACHE_DRIVER=redis
+      - QUEUE_CONNECTION=redis
+      - SESSION_DRIVER=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - AI_PROVIDER=groq
+      - AI_ENABLED=1
+      - AI_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
+    depends_on:
+      - redis
+    volumes:
+      - backend-storage:/var/www/html/storage
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── React Frontend ───────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8000
+    container_name: graphite-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ── Cron Dashboard ──────────────────────────────────────
+  cron:
+    build:
+      context: ./cron
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: php:8.4-fpm-alpine
+    container_name: graphite-cron
+    ports:
+      - "8001:80"
+    environment:
+      - APP_ENV=staging
+      - APP_DEBUG=true
+      - APP_KEY=base64:placeholder==
+      - DB_HOST=graphite-test-write.c1y5xpqlrcpg.af-south-1.rds.amazonaws.com
+      - DB_PORT=3306
+      - DB_DATABASE=Graphite_live
+      - DB_USERNAME=graphitebwlive
+      - DB_PASSWORD=89JJX(aBQ
+    volumes:
+      - backend-storage:/var/www/html/storage
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── Redis ────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: graphite-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  backend-storage:
+  redis-data:

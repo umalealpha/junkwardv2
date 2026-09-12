@@ -1,0 +1,37 @@
+name: Help guides check
+
+# Surfaces drift between the in-app module guides and the system they document:
+#  - guides whose module code changed after their lastReviewed date (stale)
+#  - sidebar areas with no Help registry entry (uncovered)
+#  - modules registered without a guide yet (informational)
+#
+# Non-blocking by design (hybrid policy): it posts ::warning:: annotations on
+# the PR but does not fail the build. Flip `--strict` in the run step to gate.
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/src/help/**'
+      - 'frontend/src/components/Layout/Sidebar.tsx'
+      - 'frontend/scripts/check-help-guides.mjs'
+      - 'frontend/src/pages/**'
+  workflow_dispatch:
+
+jobs:
+  check-help-guides:
+    name: Check module guides
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history for git-log staleness check)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run help-guide staleness check
+        working-directory: frontend
+        run: npm run check:help

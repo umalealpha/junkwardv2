@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daily Task Sheet — Monika Mali — 3 June 2026</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #FAF8F1; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1A1A19; padding: 24px; line-height: 1.5; }
+  .frame { max-width: 1180px; margin: 0 auto; background: #FFFFFF; border: 1px solid #E5E2D6; border-radius: 6px; overflow: hidden; }
+  .hdr { background: #1a2744; padding: 20px 28px; }
+  .hdr h1 { color: #FFFFFF; font-size: 16px; font-weight: 500; margin: 0; }
+  .hdr-meta { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 10px; }
+  .hdr-meta span { font-size: 12px; color: rgba(255,255,255,0.55); }
+  .hdr-meta span b { color: rgba(255,255,255,0.92); font-weight: 500; margin-right: 4px; }
+  .body { padding: 28px 32px; background: #FFFFFF; }
+  .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 4px 0 30px; text-align: center; }
+  .sc .n { font-size: 30px; font-weight: 400; line-height: 1.2; }
+  .sc .l { font-size: 13px; color: #5F5E5A; margin-top: 2px; }
+  .sc.d .n { color: #0F6E56; } .sc.p .n { color: #185FA5; } .sc.t .n { color: #B07419; } .sc.b .n { color: #A32D2D; }
+  .sec-title { font-size: 12px; font-weight: 500; color: #5F5E5A; text-transform: uppercase; letter-spacing: 0.06em; margin: 20px 0 12px; }
+  .lede { background: #ECF7F2; border-left: 3px solid #0F6E56; padding: 13px 16px; border-radius: 3px; font-size: 13px; line-height: 1.7; color: #1F4D43; margin-bottom: 6px; }
+  .lede b { color: #0A3D33; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { font-size: 13px; font-weight: 500; color: #5F5E5A; padding: 10px 12px; text-align: left; border-bottom: 1px solid #E5E2D6; background: transparent; }
+  td { padding: 11px 12px; border-bottom: 1px solid #ECEAE0; color: #1A1A19; vertical-align: top; font-size: 12.5px; }
+  .mod-row td { background: transparent !important; font-weight: 500; font-size: 13px; color: #1A1A19; padding: 14px 12px 6px; border-bottom: none; letter-spacing: -0.01em; }
+  .mod-row + tr td { padding-top: 11px; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 500; padding: 2px 10px; border-radius: 4px; white-space: nowrap; }
+  .bd { background: #E1F5EE; color: #0A5240; } .bp { background: #E6F1FB; color: #0C447C; } .bt { background: #FAEEDA; color: #7A4708; } .bb { background: #FCEBEB; color: #791F1F; }
+  .callout { padding: 12px 14px; border-radius: 4px; margin: 10px 0; font-size: 12.5px; line-height: 1.7; }
+  .callout-warn { background: #FFF8E6; border-left: 3px solid #EF9F27; color: #5F4A21; }
+  .callout b { color: #1A1A19; font-weight: 600; }
+  .scope { background: #F7F5EE; border-radius: 4px; padding: 14px 16px; font-size: 12.5px; line-height: 1.85; color: #1A1A19; }
+  .scope b { color: #1a2744; font-weight: 600; }
+  .footer { padding: 14px 28px; background: #FAF8F1; border-top: 1px solid #E5E2D6; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; color: #5F5E5A; }
+  .footer b { color: #1A1A19; font-weight: 500; }
+  code { font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 11.5px; background: #F2EEDC; padding: 1px 5px; border-radius: 3px; color: #5F4A21; }
+</style>
+</head>
+<body>
+
+<div class="frame">
+
+  <div class="hdr">
+    <h1>Daily task sheet — Monika Mali</h1>
+    <div class="hdr-meta">
+      <span><b>Date:</b> Wednesday, 3 June 2026</span>
+      <span><b>Developer:</b> Monika Mali</span>
+      <span><b>Sprint:</b> Pre-Production Stabilisation</span>
+      <span><b>To:</b> Managers</span>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <div class="lede">
+      Today's focus: COM/DOM quote &amp; coverage polish plus CFO lifecycle deliverables on the <code>fix/motor-coverage</code> branch.
+      Fixed <b>Excesses not saving on edit</b> and aligned them on the V2 Quote/Doc (incl. the Business All Risks 8-column grid).
+      Wired <b>"Benefits for the circumstances"</b> (Workers Compensation + Stated Benefits) end-to-end — re-introduced the
+      <code>benefits_note</code> column (migration to run), save, edit-load, display, and the standard-clause fallback.
+      Fixed the <b>Reinsurance Group Coverage edit</b> so the bloated master no longer floods the grid and saved values re-select.
+      Added a <b>single-policy renewal</b> option to the monthly auto-renew cron and corrected the system DB connection.
+      Produced the <b>COM motor full-lifecycle test flow</b> for the CFO, verified it read-only against a live policy, and recorded
+      the one outstanding issue — the <b>backdated-endorse pro-rata over-charge</b>.
+    </div>
+
+    <div class="summary" style="margin-top: 24px; grid-template-columns: repeat(3, 1fr);">
+      <div class="sc d"><div class="n">6</div><div class="l">Shipped today</div></div>
+      <div class="sc p"><div class="n">1</div><div class="l">Pending review (pro-rata)</div></div>
+      <div class="sc b"><div class="n">0</div><div class="l">Open blockers</div></div>
+    </div>
+
+    <div class="sec-title">Work done today</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:5%">#</th>
+          <th style="width:24%">Item</th>
+          <th style="width:12%">Type</th>
+          <th style="width:44%">What was done</th>
+          <th style="width:15%">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+
+        <tr class="mod-row"><td colspan="5">Quote &amp; Coverage — UW reports</td></tr>
+
+        <tr>
+          <td>1</td>
+          <td>Excesses not saving on coverage edit</td>
+          <td><span class="badge bb">Bug fix</span></td>
+          <td>Add path converted excesses to <code>type='Excess'</code> rows but the <b>edit path didn't</b>, so excesses dropped on Update Coverage. Mirrored the conversion in <code>updateCoverage</code> — excesses now add / edit / remove via <code>policy_extention_detail</code> (V1 parity) and stay out of the premium total.</td>
+          <td><span class="badge bd">Shipped</span></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Excess display — alignment + name on V2 Quote &amp; Doc</td>
+          <td><span class="badge bb">UI fix</span></td>
+          <td>Fixed a malformed cell that injected a phantom column; restored the excess <b>name</b> (custom name / dropdown limit / text / master). Made the Business All Risks block adapt to its <b>8-column grid</b> and gated the stray empty "Excesses" header. Both quote &amp; doc blades.</td>
+          <td><span class="badge bd">Shipped</span></td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>"Benefits for the circumstances" (WC + Stated Benefits)</td>
+          <td><span class="badge bt">Feature / parity</span></td>
+          <td>Wired the WC + Stated Benefits "Benefits for the circumstances" to show on the <b>edit screen, V2 Quote and Doc</b>, with the standard benefit clause shown by default. <b>No migration needed</b> — handled as a code fix.</td>
+          <td><span class="badge bd">Shipped</span></td>
+        </tr>
+
+        <tr class="mod-row"><td colspan="5">Admin — Reinsurance Group Coverage</td></tr>
+
+        <tr>
+          <td>4</td>
+          <td>Edit screen — bloated master + values not re-selecting</td>
+          <td><span class="badge bb">Bug fix</span></td>
+          <td>Master <code>CoverageMaster</code> has duplicated CHILD rows (e.g. FIRE "Buildings" ×54). Deduped the sub-coverage list to one per name and made the saved-value lookup match by id <b>or</b> coverage name, so the grid is clean and saved SI/PREMIUM &amp; RI LIMIT re-select. Code-only — no DB change.</td>
+          <td><span class="badge bd">Shipped</span></td>
+        </tr>
+
+        <tr class="mod-row"><td colspan="5">Renewals</td></tr>
+
+        <tr>
+          <td>5</td>
+          <td>Single-policy monthly renewal + system DB connection</td>
+          <td><span class="badge bp">Enhancement</span></td>
+          <td>Added an optional <code>--policy</code> filter to <code>DomComMonthlyAutoRenew:cron</code> (and removed a hard-coded policy id that would have limited the live batch). Pointed the <code>mysql_system</code> connection at the right host so the cron runs locally; confirmed the monthly renewal raises its invoice.</td>
+          <td><span class="badge bd">Shipped</span></td>
+        </tr>
+
+        <tr class="mod-row"><td colspan="5">CFO deliverables — COM motor lifecycle</td></tr>
+
+        <tr>
+          <td>6</td>
+          <td>COM motor full-lifecycle test flow + verification</td>
+          <td><span class="badge bp">Documentation</span></td>
+          <td>Built a step-wise flow (create → 3–4 vehicles → 3 motor covers → all detail tables → rate → V2 quote → issue → renew → backdated endorse → invoice → statement → cancel → reinstate → endorse → next-batch renew) with a pro-rata basis section, plus an actions-only CFO view. Verified the lifecycle read-only against <code>COMG2024112064</code> and marked each step <b>per code</b>.</td>
+          <td><span class="badge bd">Delivered</span></td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td>Backdated-endorse pro-rata over-charge</td>
+          <td><span class="badge bb">Issue (investigated)</span></td>
+          <td>Confirmed the mechanism: untouched motor vehicles get pulled into the endorse sum. Simulation: a single added vehicle should pro-rate to <b>P 750.68</b> but computes <b>P 4,128.77</b> when others are included (matches the earlier UW report). Fix <b>parked at your request</b> pending your review.</td>
+          <td><span class="badge bb">Pending review</span></td>
+        </tr>
+
+      </tbody>
+    </table>
+
+    <div class="callout callout-warn">
+      <b>Deploy note:</b> after deploy, run <code>config:clear</code> / <code>view:clear</code> + opcache reset and regenerate the V2 Quote / Doc so the blade and code changes take effect.
+    </div>
+
+    <div class="sec-title">Tomorrow / next steps</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:5%">#</th>
+          <th>Task</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>Solve UW issue.</td></tr>
+        <tr><td>2</td><td>Backdated Endorsement — will check.</td></tr>
+        <tr><td>3</td><td>Special product Endorsement issue — need to check if shared by UW.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="sec-title">Overall status</div>
+    <div class="scope">
+      <b>Excesses:</b> save on edit fixed; display aligned and named on Quote + Doc (incl. Business All Risks).<br>
+      <b>Benefits for the circumstances:</b> shows on the edit screen, V2 Quote and Doc for WC + Stated Benefits (standard clause by default) — code fix, no migration needed.<br>
+      <b>Reinsurance Group Coverage:</b> edit grid de-bloated and saved values re-select; code-only, no DB change.<br>
+      <b>Renewals:</b> single-policy monthly renewal option added; system DB connection fixed; invoice confirmed.<br>
+      <b>CFO lifecycle:</b> full flow + actions view delivered; verified per code against a live policy; statuses recorded.<br>
+      <b>Open blockers:</b> none. One issue pending your review — the backdated-endorse pro-rata over-charge (R2).
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <span><b>Monika Mali</b> · Alpha Direct · Graphite V2</span>
+    <span>Daily task sheet · 3 June 2026</span>
+  </div>
+
+</div>
+
+</body>
+</html>

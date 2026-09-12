@@ -1,0 +1,14 @@
+{
+    "name": "Cashback",
+    "alias": "cashback",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Cashback\\Providers\\CashbackServiceProvider",
+        "Modules\\Cashback\\Providers\\EventServiceProvider"
+    ],
+    "aliases": {},
+    "files": [],
+    "requires": []
+}

@@ -1,0 +1,13 @@
+# NEVER commit real broker schedules or extracted customer data (PII —
+# company names, policy numbers, addresses, vehicle regs). AD-POL-AI-GOV-001.
+fixtures/*
+!fixtures/.gitkeep
+test-results.json
+.venv/
+__pycache__/
+*.pyc
+
+# Never commit a real provider key
+.env
+.env.local
+gemini-key.txt

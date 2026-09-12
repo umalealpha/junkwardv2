@@ -1,0 +1,42 @@
+name: Token guardrail
+
+# Blocks a PR that INTRODUCES new hardcoded neutral color classes / raw hex in
+# the frontend, so the design-token migration (bg-surface / text-ink /
+# border-line …, defined in frontend/src/index.css + tailwind.config.js) can't
+# silently regress.
+#
+# Diff-scoped by design: it only inspects the lines this PR ADDED vs the base
+# branch. The codebase still has ~240 files with pre-existing legacy classes
+# (the migration only covered high-traffic pages) — those are intentionally
+# NOT flagged. Touching a legacy file is fine; adding a NEW violation fails.
+#
+# Standalone + additive. Does NOT touch deploy.yml or any deploy/infra job.
+# Opt-out for rare justified cases: `// token-exempt` on/above the line.
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/**'
+
+permissions:
+  contents: read
+
+jobs:
+  token-guardrail:
+    name: No new hardcoded colors
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout (full history — needed to diff against the base branch)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check for newly-added hardcoded colors
+        run: node frontend/scripts/check-hardcoded-colors.mjs --base origin/${{ github.base_ref }}

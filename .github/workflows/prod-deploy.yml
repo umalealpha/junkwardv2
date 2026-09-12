@@ -1,0 +1,228 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# prod-deploy — gated PRODUCTION deployment for Graphite V2
+#
+# Separate from deploy.yml (which auto-deploys STAGING on push to main and is
+# left untouched). This is the ONLY sanctioned way to change the prod tier.
+#
+# Gates, in order:
+#   1. Deployment window   — Mon–Fri 10:00–16:00 BW, unless emergency=true.
+#   2. Approval            — GitHub Environment `production` (required reviewers).
+#                            Anyone may TRIGGER; a reviewer must APPROVE.
+#   3. Migration visibility — prints pending prod migrations before the swap.
+#   4. Atomic + verified   — deploys the selected services, waits for stable,
+#                            then asserts the running image == intended.
+#
+# Images are promoted, never rebuilt: each service takes the newest image its
+# CI already built (backend/cron: the latest 40-hex SHA tag; frontend: the
+# latest `prod-<sha>` tag). Services build at different SHAs (a backend-only
+# change never rebuilds the frontend), so each is resolved independently.
+#
+# NOTE: requires the `production` environment to exist (Settings → Environments)
+# with required reviewers. Until then this workflow will pause at the gate.
+# ─────────────────────────────────────────────────────────────────────────────
+name: prod-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Which services to deploy'
+        type: choice
+        options: [all, backend, frontend, cron]
+        default: all
+      dry_run:
+        description: 'Dry run: resolve + show what WOULD deploy, but change nothing'
+        type: boolean
+        default: false
+      emergency:
+        description: 'Emergency: bypass the deployment window (still needs approval)'
+        type: boolean
+        default: false
+      rollback:
+        description: 'Roll the selected services back to their PREVIOUS prod revision'
+        type: boolean
+        default: false
+
+# One prod deploy at a time; never cancel an in-flight one.
+concurrency:
+  group: prod-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: af-south-1
+  ECR_REGISTRY: 623467544388.dkr.ecr.af-south-1.amazonaws.com
+  ECS_CLUSTER: graphite-cluster
+
+jobs:
+  # ── Gate 1: deployment window (no AWS, no approval needed to evaluate) ──
+  window:
+    name: Deployment window
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce Mon–Fri 10:00–16:00 BW (unless emergency)
+        run: |
+          set -euo pipefail
+          NOW=$(TZ='Africa/Gaborone' date +'%u %H%M')   # %u: 1=Mon..7=Sun
+          DOW=${NOW% *}; HM=${NOW#* }
+          H=$((10#$HM))                                  # force base-10 (avoid "0930" octal)
+          echo "Botswana time now: day=$DOW (1=Mon) time=$HM"
+          if [ "${{ inputs.emergency }}" = "true" ]; then
+            echo "::warning::EMERGENCY deploy — window check bypassed. Approval still required."
+            exit 0
+          fi
+          if [ "$DOW" -gt 5 ]; then
+            echo "::error::Weekend in BW — outside the deployment window. Re-run with emergency=true for a genuine P1."; exit 1
+          fi
+          if [ "$H" -lt 1000 ] || [ "$H" -gt 1600 ]; then
+            echo "::error::Outside 10:00–16:00 BW (now $HM). Re-run with emergency=true for a genuine P1."; exit 1
+          fi
+          echo "✓ Within the deployment window."
+
+  # ── Gates 2–4: approval + migration visibility + atomic verified deploy ──
+  deploy:
+    name: Promote to prod
+    needs: window
+    runs-on: ubuntu-latest
+    environment: production          # ← required-reviewer approval happens here
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve target services
+        id: svc
+        run: |
+          set -euo pipefail
+          case "${{ inputs.services }}" in
+            all)      L="backend frontend cron" ;;
+            backend)  L="backend" ;;
+            frontend) L="frontend" ;;
+            cron)     L="cron" ;;
+          esac
+          echo "list=$L" >> "$GITHUB_OUTPUT"
+          echo "Selected: $L"
+
+      # Informational: surface pending prod migrations BEFORE the image swap.
+      # Best-effort (never blocks) — the fail-loud entrypoint still runs them
+      # on boot, so a bad migration aborts the new task and the deploy fails
+      # visibly rather than silently.
+      - name: Pending migrations (read-only)
+        if: ${{ inputs.rollback != true && contains(steps.svc.outputs.list, 'backend') }}
+        run: |
+          set -uo pipefail
+          TD=$(aws ecs describe-task-definition --task-definition graphite-prod-backend \
+                --region "$AWS_REGION" --query 'taskDefinition.taskDefinitionArn' --output text)
+          SUBNETS="subnet-3cd4f576,subnet-5fd13536,subnet-31505649"; SG="sg-041c22f65331e0566"
+          OV='{"containerOverrides":[{"name":"graphite-backend","command":["sh","-c","cd /var/www/html && php artisan migrate:status | tail -40"]}]}'
+          NET="{\"awsvpcConfiguration\":{\"subnets\":[\"subnet-3cd4f576\",\"subnet-5fd13536\",\"subnet-31505649\"],\"securityGroups\":[\"$SG\"],\"assignPublicIp\":\"ENABLED\"}}"
+          TASK=$(aws ecs run-task --cluster "$ECS_CLUSTER" --task-definition "$TD" \
+                  --launch-type FARGATE --platform-version LATEST \
+                  --network-configuration "$NET" --overrides "$OV" \
+                  --started-by "prod-deploy-migstatus-${{ github.run_id }}" \
+                  --query 'tasks[0].taskArn' --output text 2>/dev/null || echo "")
+          if [ -z "$TASK" ] || [ "$TASK" = "None" ]; then echo "::warning::could not launch migrate:status probe (informational only)"; exit 0; fi
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK" 2>/dev/null || true
+          echo "See CloudWatch /ecs/graphite-backend for the migrate:status output of task ${TASK##*/}." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deploy / rollback selected services
+        run: |
+          set -euo pipefail
+          ROLLBACK="${{ inputs.rollback }}"
+          DRY_RUN="${{ inputs.dry_run }}"
+
+          # Summary table header (one row per service appended below).
+          {
+            echo "## prod-deploy — ${{ inputs.rollback == true && 'ROLLBACK' || 'deploy' }} (${{ inputs.services }})"
+            echo "${{ inputs.emergency == true && '⚠️ EMERGENCY (window bypassed)' || 'within window' }}"
+            echo ""
+            echo "| Service | Revision | Image |"
+            echo "|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # repo + tag-regex + prod image tag builder per service
+          declare -A REPO=( [backend]=graphite-backend [frontend]=graphite-frontend [cron]=graphite-cron )
+
+          resolve_tag () {   # $1=service → newest SHA (or prod-SHA) tag in ECR
+            local svc="$1" repo="${REPO[$1]}" re='^[0-9a-f]{40}$'
+            [ "$svc" = "frontend" ] && re='^prod-[0-9a-f]{40}$'
+            aws ecr describe-images --repository-name "$repo" --region "$AWS_REGION" \
+              --query 'reverse(sort_by(imageDetails,&imagePushedAt))[].imageTags' --output json \
+              | jq -r --arg re "$re" 'flatten | map(select(. != null and (test($re)))) | .[0] // empty'
+          }
+
+          for svc in ${{ steps.svc.outputs.list }}; do
+            SERVICE="graphite-prod-$svc"; REPONAME="${REPO[$svc]}"
+            echo "::group::$SERVICE"
+
+            # DRY RUN: resolve what WOULD happen and report it — change nothing.
+            if [ "$DRY_RUN" = "true" ]; then
+              CUR=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$SERVICE" \
+                     --region "$AWS_REGION" --query 'services[0].taskDefinition' --output text)
+              CURIMG=$(aws ecs describe-task-definition --task-definition "$CUR" --region "$AWS_REGION" \
+                        --query "taskDefinition.containerDefinitions[?contains(image,'/$REPONAME:')].image | [0]" --output text)
+              if [ "$ROLLBACK" = "true" ]; then
+                REV="${CUR##*:}"
+                echo "[DRY RUN] $SERVICE would ROLL BACK: rev $REV → $((REV-1))"
+                echo "| $SERVICE | (dry-run rollback) | rev $REV → $((REV-1)) |" >> "$GITHUB_STEP_SUMMARY"
+              else
+                TAG=$(resolve_tag "$svc")
+                echo "[DRY RUN] $SERVICE: current=${CURIMG##*/}  would-deploy=$REPONAME:${TAG:-<none found>}"
+                echo "| $SERVICE | (dry-run) | ${CURIMG##*/} → $REPONAME:${TAG:-?} |" >> "$GITHUB_STEP_SUMMARY"
+              fi
+              echo "::endgroup::"
+              continue
+            fi
+
+            if [ "$ROLLBACK" = "true" ]; then
+              CUR=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$SERVICE" \
+                     --region "$AWS_REGION" --query 'services[0].taskDefinition' --output text)
+              FAM="${CUR%:*}"; REV="${CUR##*:}"; PREV=$((REV-1))
+              if [ "$PREV" -lt 1 ]; then echo "::error::$SERVICE has no previous revision"; exit 1; fi
+              echo "Rolling $SERVICE back: rev $REV → $PREV"
+              aws ecs update-service --cluster "$ECS_CLUSTER" --service "$SERVICE" \
+                --task-definition "$FAM:$PREV" --force-new-deployment --region "$AWS_REGION" \
+                --query 'service.serviceName' --output text
+            else
+              TAG=$(resolve_tag "$svc")
+              if [ -z "$TAG" ]; then echo "::error::no image tag found for $REPONAME"; exit 1; fi
+              IMAGE="$ECR_REGISTRY/$REPONAME:$TAG"
+              echo "Deploying $SERVICE ← $REPONAME:$TAG"
+              TD=$(aws ecs describe-task-definition --task-definition "$SERVICE" \
+                    --region "$AWS_REGION" --query taskDefinition --output json)
+              # Swap EVERY container that runs this repo's image (backend has
+              # both the web container and smartuw-worker on graphite-backend,
+              # so both are kept in lockstep — no worker drift).
+              NEW_TD=$(echo "$TD" | jq --arg img "$IMAGE" --arg repo "/$REPONAME:" '
+                (.containerDefinitions[] | select(.image | contains($repo))).image = $img
+                | del(.taskDefinitionArn,.revision,.status,.compatibilities,.registeredAt,.registeredBy,.requiresAttributes)')
+              NEW_ARN=$(aws ecs register-task-definition --cli-input-json "$NEW_TD" \
+                         --region "$AWS_REGION" --query 'taskDefinition.taskDefinitionArn' --output text)
+              echo "Registered $NEW_ARN"
+              aws ecs update-service --cluster "$ECS_CLUSTER" --service "$SERVICE" \
+                --task-definition "$NEW_ARN" --force-new-deployment --region "$AWS_REGION" \
+                --query 'service.serviceName' --output text
+            fi
+
+            echo "Waiting for $SERVICE to stabilize…"
+            # NO '|| true': a service that fails to stabilize FAILS the deploy.
+            aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$SERVICE" --region "$AWS_REGION"
+
+            # Verify the running task-def is actually serving what we intended.
+            RUN_TD=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$SERVICE" \
+                      --region "$AWS_REGION" --query 'services[0].taskDefinition' --output text)
+            RUN_IMG=$(aws ecs describe-task-definition --task-definition "$RUN_TD" --region "$AWS_REGION" \
+                       --query "taskDefinition.containerDefinitions[?contains(image,'/$REPONAME:')].image | [0]" --output text)
+            echo "| $SERVICE | \`${RUN_TD##*/}\` | \`${RUN_IMG##*/}\` |" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$ROLLBACK" != "true" ] && [ "$RUN_IMG" != "$IMAGE" ]; then
+              echo "::error::$SERVICE running image ($RUN_IMG) != intended ($IMAGE)"; exit 1
+            fi
+            echo "✓ $SERVICE OK"
+            echo "::endgroup::"
+          done
+          echo "Done." >> "$GITHUB_STEP_SUMMARY"

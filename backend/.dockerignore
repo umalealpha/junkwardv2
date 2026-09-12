@@ -1,0 +1,48 @@
+vendor
+node_modules
+.env
+.env.*.bak
+.git
+.github
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+tests
+phpunit.xml
+docker-compose*.yml
+*.md
+
+# Never ship data dumps, DB exports or archives inside the web root. These are
+# working files that have no business being served — keep them out of the image
+# even if one is accidentally left in the tree.
+public/**/*.csv
+public/**/*.sql
+public/**/*.zip
+public/**/*.bak
+public/**/*.save
+public/**/*.orig
+public/packages.txt
+
+# One-off/legacy scripts that must never be web-reachable. nginx only routes
+# index.php to PHP-FPM, but keep them out of the image as defence in depth.
+public/vcs/
+public/orange/
+public/info/
+public/whatsapp/
+public/php_info.php
+public/test.php
+public/accept.php
+public/pending-files/
+public/uploads/
+
+# Vendored jQuery.repeater ships test endpoints that echo request input back.
+# Nothing in the app loads them.
+public/**/jquery.repeater/test/
+public/**/jquery.repeater/test-post-parse.php
+
+# Root-level one-off dev scripts
+_test_*.php
+test_*.php
+seed_policies.php
+generate_report_pdf.php

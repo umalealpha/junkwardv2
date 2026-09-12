@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daily Dev Status Report — Alpha Direct</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #FAF8F1;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1A1A19;
+    padding: 24px;
+    line-height: 1.5;
+  }
+  .frame {
+    max-width: 1180px;
+    margin: 0 auto;
+    background: #FFFFFF;
+    border: 1px solid #E5E2D6;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  /* Header */
+  .hdr {
+    background: #1a2744;
+    padding: 20px 28px;
+  }
+  .hdr h1 {
+    color: #FFFFFF;
+    font-size: 16px;
+    font-weight: 500;
+    margin: 0;
+  }
+  .hdr-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px;
+    margin-top: 10px;
+  }
+  .hdr-meta span {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.55);
+  }
+  .hdr-meta span b {
+    color: rgba(255, 255, 255, 0.92);
+    font-weight: 500;
+    margin-right: 4px;
+  }
+
+  /* Body */
+  .body {
+    padding: 28px 32px;
+    background: #FFFFFF;
+  }
+
+  /* Summary tiles */
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 4px 0 30px;
+    text-align: center;
+  }
+  .sc .n {
+    font-size: 30px;
+    font-weight: 400;
+    line-height: 1.2;
+  }
+  .sc .l {
+    font-size: 13px;
+    color: #5F5E5A;
+    margin-top: 2px;
+  }
+  .sc.d .n { color: #0F6E56; }
+  .sc.p .n { color: #185FA5; }
+  .sc.t .n { color: #B07419; }
+  .sc.b .n { color: #A32D2D; }
+
+  /* Section title */
+  .sec-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: #5F5E5A;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 20px 0 12px;
+  }
+
+  /* Lede paragraph */
+  .lede {
+    background: #ECF7F2;
+    border-left: 3px solid #0F6E56;
+    padding: 13px 16px;
+    border-radius: 3px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #1F4D43;
+    margin-bottom: 6px;
+  }
+  .lede b { color: #0A3D33; font-weight: 600; }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  th {
+    font-size: 13px;
+    font-weight: 500;
+    color: #5F5E5A;
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #E5E2D6;
+    background: transparent;
+  }
+  td {
+    padding: 11px 12px;
+    border-bottom: 1px solid #ECEAE0;
+    color: #1A1A19;
+    vertical-align: top;
+    font-size: 12.5px;
+  }
+
+  /* Module group sub-header rows */
+  .mod-row td {
+    background: transparent !important;
+    font-weight: 500;
+    font-size: 13px;
+    color: #1A1A19;
+    padding: 14px 12px 6px;
+    border-bottom: none;
+    letter-spacing: -0.01em;
+  }
+  .mod-row + tr td { padding-top: 11px; }
+
+  /* Status badges */
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .bd { background: #E1F5EE; color: #0A5240; }
+  .bp { background: #E6F1FB; color: #0C447C; }
+  .bt { background: #FAEEDA; color: #7A4708; }
+  .bb { background: #FCEBEB; color: #791F1F; }
+
+  /* Severity badges */
+  .sev-p1 { background: #FCEBEB; color: #791F1F; }
+  .sev-p2 { background: #FAEEDA; color: #7A4708; }
+  .sev-p3 { background: #E6F1FB; color: #0C447C; }
+
+  /* Local / Staging badges */
+  .etag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .et-pass     { background: #E1F5EE; color: #0A5240; }
+  .et-fail     { background: #FCEBEB; color: #791F1F; }
+  .et-pend     { background: #FAEEDA; color: #7A4708; }
+
+  /* Callouts */
+  .callout {
+    padding: 12px 14px;
+    border-radius: 4px;
+    margin: 10px 0;
+    font-size: 12.5px;
+    line-height: 1.7;
+  }
+  .callout-good { background: #ECF7F2; border-left: 3px solid #0F6E56; color: #1F4D43; }
+  .callout-info { background: #EAF1FB; border-left: 3px solid #185FA5; color: #163F70; }
+  .callout-warn { background: #FFF8E6; border-left: 3px solid #EF9F27; color: #5F4A21; }
+  .callout-bad  { background: #FCEBEB; border-left: 3px solid #A32D2D; color: #5F1818; }
+  .callout b { color: #1A1A19; font-weight: 600; }
+
+  /* Scope summary box */
+  .scope {
+    background: #F7F5EE;
+    border-radius: 4px;
+    padding: 14px 16px;
+    font-size: 12.5px;
+    line-height: 1.85;
+    color: #1A1A19;
+  }
+  .scope b { color: #1a2744; font-weight: 600; }
+
+  /* Footer */
+  .footer {
+    padding: 14px 28px;
+    background: #FAF8F1;
+    border-top: 1px solid #E5E2D6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 12px;
+    color: #5F5E5A;
+  }
+  .footer b { color: #1A1A19; font-weight: 500; }
+
+  /* ETA column */
+  td.eta { color: #5F5E5A; font-size: 12px; }
+
+  /* Inline code */
+  code {
+    font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 11.5px;
+    background: #F2EEDC;
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #5F4A21;
+  }
+</style>
+</head>
+<body>
+
+<div class="frame">
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <h1>Daily dev status report — Alpha Direct</h1>
+    <div class="hdr-meta">
+      <span><b>Date:</b> Wednesday, 27 May 2026</span>
+      <span><b>Developer:</b> Monika Mali</span>
+      <span><b>Sprint:</b> Pre-Production Stabilisation</span>
+      <span><b>To:</b> Managers</span>
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div class="body">
+
+    <!-- Lede summary paragraph -->
+    <div class="lede">
+      Today's focus was <b>Specialist Product endorsement testing</b>. Worked through <b>CAR + PAR + EAR</b> endorse cases and surfaced a few issues — raised them with <b>Sonali</b>, and some were resolved during the session; the rest still need further testing. <b>Machinery (MBD)</b> endorse cases are done — verified 2–3 representative cases end-to-end. Started work on the <b>Cancel Policy flow for Specialist Products</b>. Also fixed and deployed a couple of <b>V1 issues</b>. Spent time studying the <b>Engineering &amp; Specialist product flow with Sonali</b> to align on the end-to-end behaviour.
+    </div>
+
+    <!-- Summary tiles -->
+    <div class="summary" style="margin-top: 24px;">
+      <div class="sc d"><div class="n">3</div><div class="l">Shipped today</div></div>
+      <div class="sc p"><div class="n">2</div><div class="l">In progress</div></div>
+      <div class="sc t"><div class="n">3</div><div class="l">In testing</div></div>
+      <div class="sc b"><div class="n">0</div><div class="l">Open blockers</div></div>
+    </div>
+
+    <!-- WORK DONE TODAY -->
+    <div class="sec-title">Work done today</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:5%">#</th>
+          <th style="width:24%">Item</th>
+          <th style="width:12%">Type</th>
+          <th style="width:34%">What was done</th>
+          <th style="width:15%">Commit / Ref</th>
+          <th style="width:10%">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+
+        <tr class="mod-row"><td colspan="6">Specialist Endorsement — Engineering</td></tr>
+
+        <tr>
+          <td>1</td>
+          <td>CAR + PAR + EAR endorse cases</td>
+          <td><span class="badge bt">Testing</span></td>
+          <td>Walked through endorse cases for Contractors All Risk, Plant All Risk and Erection All Risk. Found a few issues during testing — raised with Sonali; some resolved in-session, remainder still need further testing.</td>
+          <td>—</td>
+          <td><span class="badge bt">In progress</span></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Machinery (MBD) endorse cases</td>
+          <td><span class="badge bp">Validation</span></td>
+          <td>End-to-end endorse flow verified on 2–3 representative Machinery Breakdown cases; pro-rata and invoice generation behaving as expected.</td>
+          <td>—</td>
+          <td><span class="badge bd">Done</span></td>
+        </tr>
+
+        <tr class="mod-row"><td colspan="6">Specialist — Cancel Policy</td></tr>
+
+        <tr>
+          <td>3</td>
+          <td>Cancel Policy flow for Specialist Products</td>
+          <td><span class="badge bp">Dev</span></td>
+          <td>Started building the cancel-policy flow for specialist products (negative pro-rata refund, line-level write across specialist coverage tables). Initial wiring in place; not yet test-complete.</td>
+          <td>—</td>
+          <td><span class="badge bp">In progress</span></td>
+        </tr>
+
+        <tr class="mod-row"><td colspan="6">V1 Maintenance</td></tr>
+
+        <tr>
+          <td>4</td>
+          <td>V1 issue fixes</td>
+          <td><span class="badge bb">Bugfix</span></td>
+          <td>Resolved a couple of issues reported on the V1 system and deployed the fixes.</td>
+          <td>Deployed</td>
+          <td><span class="badge bd">Deployed</span></td>
+        </tr>
+
+        <tr class="mod-row"><td colspan="6">Knowledge / Flow Alignment</td></tr>
+
+        <tr>
+          <td>5</td>
+          <td>Engineering &amp; Specialist product flow study (with Sonali)</td>
+          <td><span class="badge bp">Study</span></td>
+          <td>Reviewed the end-to-end flow for Engineering and Specialist products together with Sonali to align understanding ahead of remaining endorse / cancel testing.</td>
+          <td>—</td>
+          <td><span class="badge bd">Done</span></td>
+        </tr>
+
+      </tbody>
+    </table>
+
+    <!-- ISSUES FOUND -->
+    <div class="sec-title">Issues found during testing</div>
+    <div class="callout callout-warn">
+      <b>CAR / PAR / EAR endorse:</b> A few issues surfaced while testing. Raised with <b>Sonali</b> — some resolved during the session, the remainder require further testing before they can be closed. To be revisited tomorrow.
+    </div>
+
+    <!-- CRON STATUS -->
+    <div class="sec-title">Cron service</div>
+    <div class="callout callout-good">
+      <b>Cron service:</b> healthy; no incidents today. Minor post-prod config tuning still pending as previously noted.
+    </div>
+
+    <!-- BLOCKERS -->
+    <div class="sec-title">Blockers</div>
+    <div class="callout callout-good">
+      <b>None.</b> Open CAR / PAR / EAR items are in active testing with Sonali — not blocked.
+    </div>
+
+    <!-- PLAN FOR TOMORROW -->
+    <div class="sec-title">Plan for tomorrow — Thursday, 28 May 2026</div>
+    <div class="callout callout-info">
+      <b>Focus:</b> Close out remaining CAR / PAR / EAR endorse issues, continue the Specialist Cancel Policy flow, and extend endorse testing to the remaining specialist coverages.
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:5%">#</th>
+          <th style="width:35%">Task</th>
+          <th style="width:25%">Module / Area</th>
+          <th style="width:35%">Expected outcome / Acceptance</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>Re-test remaining CAR / PAR / EAR endorse issues</td>
+          <td>Engineering specialist coverages</td>
+          <td>Confirm fixes from Sonali; close resolved items, log any still open</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Continue Specialist Cancel Policy flow</td>
+          <td>Specialist — Cancel Policy</td>
+          <td>Complete wiring + first pass of testing; verify negative pro-rata refund across specialist coverage tables</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>Extend endorse testing to remaining specialist coverages</td>
+          <td>Travel / Med-Mal / PI / Marine D&amp;O / Cargo</td>
+          <td>Walk through endorse cases; reconcile pro-rata premium against expected new-period factor</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- OVERALL STATUS -->
+    <div class="sec-title">Overall status</div>
+    <div class="scope">
+      <b>Specialist endorsement:</b> CAR / PAR / EAR under active testing — some issues found and partly resolved with Sonali. Machinery (MBD) verified on 2–3 cases.<br>
+      <b>Specialist cancel:</b> Cancel Policy flow for specialist products started; in progress.<br>
+      <b>V1:</b> A couple of issues fixed and deployed.<br>
+      <b>Flow alignment:</b> Engineering / Specialist flow studied with Sonali.<br>
+      <b>Cron:</b> Stable.<br>
+      <b>Production-readiness:</b> On track. No open blockers from today.
+    </div>
+
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <span><b>Monika Mali</b> · Alpha Direct · mmali@theriskco.com</span>
+    <span>Daily report · 27 May 2026</span>
+  </div>
+
+</div>
+
+</body>
+</html>

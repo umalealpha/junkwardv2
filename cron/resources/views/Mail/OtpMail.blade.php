@@ -1,0 +1,1 @@
+Greetings from Alpha Direct , your OTP code:{{$otpCode}}

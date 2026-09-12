@@ -1,0 +1,115 @@
+
+#top-bar {
+    position: relative;
+    border-bottom: 1px solid #eee;
+    height: 47px;
+    line-height: 44px;
+    font-size: 13px;
+}
+.top-links ul li {
+    float: left;
+    position: relative;
+    height: 44px;
+    border-left: 1px solid #eee;
+    padding: -4px;
+    margin-left: 6px;
+    margin-right: 6px;
+}
+.nav-items{
+    height: 107px;
+    width: calc(14.5% - 20px);
+}
+.inner-icon{
+    padding-top: 11px;
+    margin-left: 40%;
+    position: relative;
+}
+.tab_heading{
+    text-align: -webkit-center;
+    text-align:center;
+    font-size: 16px;
+}
+.body-heading{
+    font-size: 150%;
+}
+.div_tab{
+    color: #403F86;
+    width: 180px;
+    height:133px;
+    box-shadow: 0 7px 20px rgba(0,0,0,.1);
+    margin: 0 30px 10px 0;
+    background-color: #fff;
+}
+/*Footer and copyrights*/
+#footer.dark,
+.dark #footer {
+    background-color:#403f86;
+    color: #ccc;
+    border-top-color: rgba(0, 0, 0, .2)
+}
+#footer {
+    position: relative;
+    background-color: #eee;
+    border-top: 5px solid rgba(0, 0, 0, .2);
+}
+#copyrights {
+    padding: 2px 0;
+    background-color: #ddd;
+    font-size: 14px;
+    line-height: 1.8;
+}
+#footer .footer-widgets-wrap {
+    position: relative;
+    padding: 20px 0;
+}
+
+@media (min-width:500px)
+{
+    .content-body{
+        border: 1px solid #80808075;
+        border-radius: 11px;
+        padding: 7%;
+        box-shadow: 0 7px 20px rgba(0,0,0,.1);
+        background-color:white;
+    }
+}
+@media (min-width:400px)
+{
+    .content-body{
+        border: 1px solid #80808075;
+        border-radius: 11px;
+        padding: 7%;
+        box-shadow: 0 7px 20px rgba(0,0,0,.1);
+        background-color:white;
+    }
+}
+@media (min-width:300px)
+{
+    .content-body{
+        border: 1px solid #80808075;
+        border-radius: 11px;
+        padding: 7%;
+        box-shadow: 0 7px 20px rgba(0,0,0,.1);
+        background-color:white;
+    }
+}
+/* Media Query for Large screens */
+@media (min-width: 1281px) {
+    .content-body{
+        border: 1px solid #80808075;
+        border-radius: 11px;
+        padding: 2%;
+        box-shadow: 0 7px 20px rgba(0,0,0,.1);
+        background-color:white;
+    }
+}
+.btn-orange{
+    color: white;
+    background-color: #fe7f0c;
+}
+.button-alpha-orange{
+    background-color: #fe7f0c;
+}
+.button-alpha-blue {
+    background-color: #000066 !important;
+}
