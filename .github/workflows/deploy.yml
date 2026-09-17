@@ -11,21 +11,15 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'push' }}
 
 on:
-  push:
-    branches: [main]
-    # Only trigger on code changes in deployable trees. Doc-only PRs
-    # touching README.md / PARITY_AUDITS/** / SESSION_HANDOFF.md at repo
-    # root are already excluded because they don't match any of these.
-    # (paths + paths-ignore together is broken in GH Actions — if both
-    #  are specified, paths-ignore is silently dropped. So we keep it
-    #  simple: just paths.)
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'cron/**'
-      - 'ace/**'
-      - 'smart-uw-engine/**'
-      - '.github/workflows/**'
+  # ── REVIEW-REPO COPY: automatic push-deploy DISABLED ──────────────────────
+  # The `push:` trigger is intentionally removed so this workflow does NOT try
+  # to build/push Docker images to ECR and deploy to Alpha Direct's staging/ECS
+  # on every push. A personal review copy has no AWS credentials and must never
+  # write to the live system. Kept manual-only, mirroring the Omni review repo.
+  # To restore auto-deploy in the org repo, re-add above workflow_dispatch:
+  #   push:
+  #     branches: [main]
+  #     paths: ['backend/**','frontend/**','cron/**','ace/**','smart-uw-engine/**','.github/workflows/**']
   workflow_dispatch:
     inputs:
       deploy_target:
